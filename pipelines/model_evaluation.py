@@ -334,7 +334,7 @@ class ModelEvaluationPipeline(FlowSpec):
             raise ValueError("Date mismatch between aggregated and individual data.")
         
         # Loop over days
-        for date in unique_dates[100:101]:
+        for date in unique_dates:
             try:
                 date_idx = date_to_idx[date]
                 logger.info(f"Simulating Date: {date} ({date_idx+1}/{len(unique_dates)})")
