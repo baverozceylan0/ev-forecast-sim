@@ -1,0 +1,5 @@
+_target_: src.models.aggregated.kNN.model.kNNModelConfig
+name: kNN
+version: default
+weight_sigma: 10
+use_month: False

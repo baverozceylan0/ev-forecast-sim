@@ -1,0 +1,30 @@
+_target_: src.configs_lib.PipelineConfig
+name: "model_evaluation"
+dataset_id: ASR
+data_cleaning_strategy_steps:
+  - ASRDataCleaning
+  - DropWeekendSessions
+feature_engineering_strategy_steps: 
+  agg:
+    - EnrichSessions
+    - SessionsToEvents
+    - EventsToTimeseries
+  usr:
+    - EnrichSessions
+feature_engineering_selected_features:
+  agg:
+    - EV_id_x
+    - start_time
+    - end_time
+    - cum_ev_count
+    - total_energy
+    - day_of_week
+  usr:
+    - EV_id_x
+    - start_time
+    - end_time
+    - cum_ev_count
+    - total_energy
+    - day_of_week
+test_size: 0.15
+random_state: 1337

@@ -1,0 +1,6 @@
+_target_: src.models.user.bayesian.model.BayesianModelConfig
+name: bayesian
+version: default
+lambda_weight: 0.2
+min_sessions: 10
+percentile: 50 # percentile: float in [0, 100]
