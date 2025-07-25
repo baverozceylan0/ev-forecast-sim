@@ -16,7 +16,7 @@ RUN pip install --upgrade pip && \
 
 # Copy startup script
 COPY start.sh .
-RUN chmod +x start.sh 
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
 # Default command (overridden by docker-compose)
-CMD ["/app/start.sh"]
+CMD ["/bin/bash", "start.sh"]
