@@ -1,0 +1,3 @@
+[submodule "src/common/FlowbasedOfflineChargingScheduler"]
+	path = src/common/FlowbasedOfflineChargingScheduler
+	url = https://github.com/lwinschermann/FlowbasedOfflineChargingScheduler
