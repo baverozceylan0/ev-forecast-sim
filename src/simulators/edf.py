@@ -6,6 +6,11 @@ import numpy as np
 import os
 from src.simulators.base_simulator import Simulator
 
+from src.common.session_generator import generate_sessions_from_profile
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class EDF(Simulator):
     def __init__(self) -> None:
@@ -18,6 +23,7 @@ class EDF(Simulator):
 
     def initilize(self) -> None:
         self.system_state = pd.DataFrame({
+            'session_id': pd.Series(dtype='str'),
             'EV_id_x': pd.Series(dtype='str'),
             'start_datetime': pd.Series(dtype='datetime64[ns]'),
             'end_datetime': pd.Series(dtype='datetime64[ns]'),
@@ -44,15 +50,11 @@ class EDF(Simulator):
         _rem_time_h[_rem_energy_kWh < 0.25] = 0.25
         target_power = np.max(_rem_energy_kWh / _rem_time_h)
         target_power = max(self.min_target_power, target_power)
-        if np.isnan(target_power):
-            print(_rem_energy_kWh)
-            print(_rem_time_h)
-            raise
         mask = self.system_state['status'] == 'charging'
-
-        _merged = pd.merge(self.system_state.loc[mask, ['EV_id_x', 'total_energy_supplied']], df_usr_sessions[['EV_id_x', 'total_energy', 'end_datetime']],  on='EV_id_x', how='left')
+        
+        _merged = pd.merge(self.system_state.loc[mask, ['session_id', 'total_energy_supplied']], df_usr_sessions[['session_id', 'total_energy', 'end_datetime']],  on='session_id', how='left')
         if _merged.isna().any().any():
-            print("⚠️ There are missing values in the merged DataFrame.")
+            raise ValueError("⚠️ There are missing values in the merged DataFrame.")
         required_energy = _merged['total_energy'] - _merged['total_energy_supplied']
         required_energy[required_energy < 0] = 0
         remaining_time_h = (_merged['end_datetime'] - curr_datetime).dt.total_seconds() / 3600
@@ -62,12 +64,12 @@ class EDF(Simulator):
         _merged = _merged.sort_values(by='required_power', ascending=False)
 
         num_of_evs_to_be_charged = np.ceil(target_power / self.max_power).astype(int)
-        scheduled_evs = _merged['EV_id_x'].head(num_of_evs_to_be_charged).tolist()
 
+        scheduled_sessions = _merged['session_id'].head(num_of_evs_to_be_charged).tolist()
 
         # Apply the schedule considering departing EVs  
-        for target_id in scheduled_evs:
-            _index_system_state = self.system_state[(self.system_state['EV_id_x'] == target_id) & (self.system_state['status'] == 'charging')].index
+        for target_id in scheduled_sessions:
+            _index_system_state = self.system_state[(self.system_state['session_id'] == target_id) & (self.system_state['status'] == 'charging')].index
             if len(_index_system_state) != 1:
                 raise ValueError(f"Expected exactly one match for EV_id {target_id}, but found {len(_index_system_state)}: {self.system_state.loc[_index_system_state]}")
 
@@ -84,12 +86,13 @@ class EDF(Simulator):
         arriving_evs = active_session_info[active_session_info['start_datetime'] >= curr_datetime]
 
         for index, row in arriving_evs.iterrows():
-            if row['EV_id_x'] in self.system_state['EV_id_x']:
+            if row['session_id'] in self.system_state['session_id']:
                 raise ValueError(f"Arriving EV is already connected: {row}")     
             _energy = self.max_power * ((curr_datetime + pd.Timedelta(minutes=15)) - row['start_datetime']).total_seconds() / 3600
             if _energy > self.max_power / 4:
                 raise ValueError(f"Supplied energy {_energy} is not feasible since max power is {self.max_power}")
             new_row = pd.DataFrame([{
+                'session_id': row['session_id'],
                 'EV_id_x': row['EV_id_x'],
                 'start_datetime': row['start_datetime'],
                 'end_datetime': row['end_datetime'],
@@ -106,6 +109,8 @@ class EDF(Simulator):
         mask = (self.system_state['total_energy_supplied'] >= self.system_state['total_energy_demand']) &  (self.system_state['status'] == 'charging')
         self.system_state.loc[mask, 'total_energy_supplied'] = self.system_state.loc[mask, 'total_energy_demand']
         self.system_state.loc[mask, 'status'] = 'fully_charged'
+
+        generate_sessions_from_profile(df_usr_sessions, df_agg_timeseries, curr_time)
 
 
     def publish_results(self, output_dir: str, prefix: Optional[str] = None) -> None:
