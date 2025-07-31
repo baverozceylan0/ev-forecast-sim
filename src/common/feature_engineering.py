@@ -173,7 +173,8 @@ class FeatureEngineer:
     'OneHotEncodeDayOfWeek': OneHotEncodeDayOfWeek
     }
 
-    def __init__(self):
+    def __init__(self, logging_off: bool = False):
+        self.logging_off = logging_off
         self.strategy: Optional[FeatureEngineeringStrategy] = None
         self._available_strategies = {
             'EnrichSessions': EnrichSessions(),
@@ -186,8 +187,9 @@ class FeatureEngineer:
     def set_strategy(self, strategy: str):
         if strategy not in self.FEATURE_ENGINEERING_STRATEGY_REGISTRY:
             raise ValueError(f"Unknown strategy '{strategy}'. Available: {list(self.FEATURE_ENGINEERING_STRATEGY_REGISTRY.keys())}")
-        self.strategy = self._available_strategies[strategy]    
-        logger.info(f"Set feature engineering strategy: {strategy}")
+        self.strategy = self._available_strategies[strategy]
+        if not self.logging_off:    
+            logger.info(f"Set feature engineering strategy: {strategy}")
 
     def apply_transformation(self, df: pd.DataFrame, **kwargs):
         if not self.strategy:
