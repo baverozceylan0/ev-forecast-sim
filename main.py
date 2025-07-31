@@ -23,7 +23,8 @@ def run(cfg: BaseConfig) -> None:
     flow_log_file = os.path.join(output_dir, "flow.log")
 
     
-    logger = setup_logger("main", log_file=main_log_file) 
+    setup_logger(log_file=main_log_file) 
+    logger = logging.getLogger(__name__)
     logger.info("Logging is working.")
 
 

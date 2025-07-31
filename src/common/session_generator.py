@@ -3,6 +3,9 @@ import numpy as np
 from datetime import time, date, datetime
 
 from src.common.feature_engineering import FeatureEngineer
+import logging
+
+logger = logging.getLogger(__name__)
 
 engineer = FeatureEngineer(logging_off=True)
 
@@ -111,4 +114,4 @@ def sanity_check(df_sessions: pd.DataFrame, max_power_kW: float = 13):
         error_msg = "\n".join(errors)
         raise ValueError(f"Session DataFrame check failed:\n{error_msg}")
     else:
-        print("✅ Session DataFrame passed all checks.")
+        logger.error("✅ Session DataFrame passed all checks.")

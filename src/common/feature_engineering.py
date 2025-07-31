@@ -6,7 +6,6 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-
 class FeatureEngineeringStrategy(ABC):
     """Abstract base class for feature engineering strategies."""
 

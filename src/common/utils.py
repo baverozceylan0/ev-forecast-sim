@@ -4,6 +4,7 @@ from typing import List, Tuple, Dict, Any
 
 import mlflow
 import logging
+import logging.config
 
 import os
 import sys
@@ -12,35 +13,40 @@ from typing import Any, Optional, Type
 from datetime import datetime
 from pathlib import Path 
 
-def setup_logger(name: str = "app", log_file: str = "run.log") -> logging.Logger:
+def setup_logger(log_file: str = "run.log", level="INFO") -> None:
     """
     Sets up a logger that prints to both the console and a file.
     Ensures consistent logging across files and subprocesses.
     """
-    logger = logging.getLogger(name)
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "format": "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "default",
+                "level": level
+            },
+            "file": {
+                "class": "logging.FileHandler",
+                "formatter": "default",
+                "level": "DEBUG",
+                "filename": log_file,
+            },
+        },
+        "root": {  # root logger
+            "level": level,
+            "handlers": ["console", "file"]
+        },
+    }
 
-    if logger.hasHandlers():
-        return logger  # prevent duplicate handlers
-
-    logger.setLevel(logging.INFO)
-
-    # File handler
-    fh = logging.FileHandler(log_file, mode='a')
-    fh.setLevel(logging.DEBUG)
-
-    # Console handler
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
-
-    # Formatter
-    formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s | %(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-
-    return logger
+    logging.config.dictConfig(config)
 
 def load_and_instantiate_config(file_path: str, config_class: Type, config_name: Optional[str] = "Config") -> Any:
     """

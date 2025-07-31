@@ -14,7 +14,6 @@ from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class BayesianModelConfig(ModelConfig):
     lambda_weight: float
@@ -78,7 +77,7 @@ class BayesianModelBuilding(Model):
         historical_data = data_train[required_features].copy()
         self.historical_data = historical_data.sort_values(['EV_id_x']) 
 
-        logging.debug(f"Historical data: shape{self.historical_data.shape} -- columns{self.historical_data.columns.to_list()}")
+        logger.debug(f"Historical data: shape{self.historical_data.shape} -- columns{self.historical_data.columns.to_list()}")
 
     def forecast(self, prior_data: pd.DataFrame, curr_time: Optional[time] = None) -> pd.DataFrame:
         required_features = ['EV_id_x', 'start_time', 'est_end_time', 'est_total_energy']
@@ -97,7 +96,7 @@ class BayesianModelBuilding(Model):
                 # If estimation fails, return NaNs
                 prior_data.at[idx,'est_end_time'] = pd.NaT
                 prior_data.at[idx,'est_total_energy'] = np.nan
-                logging.debug(f"[Bayesian Estimator] Estimation failed: {e}")
+                logger.debug(f"[Bayesian Estimator] Estimation failed: {e}")
 
         return prior_data          
         
