@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 from datetime import time, date, datetime
 
-from src.common.feature_engineering import FeatureEngineer, SessionsToEvents, EventsToTimeseries
+from src.common.feature_engineering import FeatureEngineer
 
-engineer = FeatureEngineer()
+engineer = FeatureEngineer(logging_off=True)
 
 def generate_sessions_from_profile(df_sessions: pd.DataFrame, 
                                    df_agg: pd.DataFrame, 
@@ -61,13 +61,15 @@ def generate_sessions_from_profile(df_sessions: pd.DataFrame,
             psudo_arrival_datetime = pd.to_datetime(f"{target_date} {time_bins[idx]}")
             target_energy_per_ev = min(target_energy_per_ev, (max_power_kW/4)*(departure_slot_to_fill-idx))
             row = pd.DataFrame([{
-                'EV_id_x': 'EV0000',            
+                'EV_id_x': 'EV0000', 
+                'session_id': f"UEV0000-{target_date.strftime('%Y%m%d')}-{psudo_seesion_counter+1}",           
                 'start_datetime': psudo_arrival_datetime,            
                 'end_datetime': psudo_end_datetime,
                 'total_energy': target_energy_per_ev
                 # Add any other required columns with default values here
             }])
             df_sessions_padded = pd.concat([df_sessions_padded, row], ignore_index=True)
+            psudo_seesion_counter += 1
 
     return df_sessions_padded
 
