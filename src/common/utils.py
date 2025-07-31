@@ -244,6 +244,52 @@ def filter_and_order_columns(
 
     return df[ordered_cols]
 
+
+def add_session_id(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds a session_id column to an EV session dataset.
+    Format: U<user_id>-<YYYYMMDD>-<counter>
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe with 'EV_id_x' and 'start_datetime' columns.
+        
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with an additional 'session_id' column.
+    """
+
+    date_format = "%Y%m%d"
+
+    df = df.copy()
+    df['_date_helper'] = df['start_datetime'].dt.strftime(date_format)
+    
+    # Sort a copy for counting
+    sorted_idx = df.sort_values(by=['EV_id_x', '_date_helper', 'start_datetime']).index
+    session_counts = (
+        df.loc[sorted_idx]
+        .groupby(['EV_id_x', '_date_helper'])
+        .cumcount() + 1
+    )
+
+    # Create session_id for the sorted order
+    session_ids = [
+        f"U{row['EV_id_x']}-{row['_date_helper']}-{count}"
+        for row, count in zip(df.loc[sorted_idx].to_dict('records'), session_counts)
+    ]
+
+    # Map back to original order
+    df.loc[sorted_idx, 'session_id'] = session_ids
+
+    # Drop helper column
+    df.drop(columns='_date_helper', inplace=True)
+
+    
+    return df
+
+
 def to_time_or_nat(x):
     try: 
         return datetime.strptime(str(x), "%H:%M").time()

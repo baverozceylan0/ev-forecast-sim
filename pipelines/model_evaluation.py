@@ -18,7 +18,7 @@ from src.configs_lib import PipelineConfig
 from src.common.load_data import DataLoaderFactory
 from src.common.clean_data import DataCleaner
 from src.common.feature_engineering import FeatureEngineer
-from src.common.utils import split_by_date_grouped, log_parameters_mlflow, filter_and_order_columns
+from src.common.utils import split_by_date_grouped, log_parameters_mlflow, filter_and_order_columns, add_session_id
 
 from src.models.base_model import ModelConfig, Model
 
@@ -303,7 +303,7 @@ class ModelEvaluationPipeline(FlowSpec):
         """
         Load the trained model and run simulation for each day in the test data. Save KPIs.
         """
-        logger: logging.Logger = setup_logger("model_building_step", log_file=self.log_file)
+        logger: logging.Logger = setup_logger("simulation_step", log_file=self.log_file)
         logger.setLevel(LOGGER_LVL) 
 
         # TODO: Replace hardcoded EDF() instantiation with a dynamic simulator loader.
@@ -332,6 +332,8 @@ class ModelEvaluationPipeline(FlowSpec):
             date_to_idx = {d: i for i, d in enumerate(unique_dates)}
         else:
             raise ValueError("Date mismatch between aggregated and individual data.")
+        
+        self.df_test_feature_engineered['usr'] = add_session_id(self.df_test_feature_engineered['usr'])
         
         # Loop over days
         for date in unique_dates:
@@ -367,7 +369,7 @@ class ModelEvaluationPipeline(FlowSpec):
                     next_time = curr_time if curr_time == time(23, 45) else (datetime.combine(datetime.today(), curr_time) + timedelta(minutes=15)).time()                
 
                     # Prepare scheduler_view         
-                    curr_day_usr_prior = curr_day_usr_real[curr_day_usr_real['start_time'] < curr_time][['date', 'EV_id_x', 'total_energy', 'start_time', 'end_time']]
+                    curr_day_usr_prior = curr_day_usr_real[curr_day_usr_real['start_time'] < curr_time][['date', 'EV_id_x', 'total_energy', 'start_time', 'end_time','session_id']]
                     mask = (curr_day_usr_prior['end_time'] >= curr_time)
                     curr_day_usr_prior.loc[mask, 'end_time'] = pd.NaT 
                     curr_day_usr_prior.loc[mask, 'total_energy'] = np.nan                
@@ -385,7 +387,7 @@ class ModelEvaluationPipeline(FlowSpec):
                     scheduler_view = curr_day_usr_prior                 
                     scheduler_view['start_datetime'] = pd.to_datetime(scheduler_view['date'].astype(str) + ' ' + scheduler_view['start_time'].astype(str))
                     scheduler_view['end_datetime'] = pd.to_datetime(scheduler_view['date'].astype(str) + ' ' + scheduler_view['end_time'].astype(str), format='mixed')
-                    scheduler_view=scheduler_view[['EV_id_x','start_datetime','end_datetime','total_energy']]
+                    scheduler_view=scheduler_view[['EV_id_x','start_datetime','end_datetime','total_energy','session_id']]
                     if scheduler_view.isnull().values.any():
                         raise ValueError("⚠️ There are NaNs in scheduler_view.")
                     
@@ -400,7 +402,7 @@ class ModelEvaluationPipeline(FlowSpec):
                     
 
                     # Prepare active_session_info
-                    active_session_info = curr_day_usr_real[(curr_day_usr_real['start_time'] < next_time) & (curr_day_usr_real['end_time'] >= curr_time)][['date', 'EV_id_x', 'total_energy', 'start_time', 'end_time']]
+                    active_session_info = curr_day_usr_real[(curr_day_usr_real['start_time'] < next_time) & (curr_day_usr_real['end_time'] >= curr_time)][['date', 'EV_id_x', 'total_energy', 'start_time', 'end_time', 'session_id']]
                     if active_session_info.isnull().values.any():
                         raise ValueError("⚠️ There are NaNs in active_session_info.")        
                     
@@ -411,7 +413,7 @@ class ModelEvaluationPipeline(FlowSpec):
 
                 simulator.publish_results(self.results_folder)    
             except Exception as e:
-                err = f"Failed to simulate day:{date} : {e}"
+                err = f"Failed to simulate day: {date} : {e}"
                 logger.error(err)
                 
 
