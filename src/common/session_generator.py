@@ -20,7 +20,8 @@ def generate_sessions_from_profile(df_sessions: pd.DataFrame,
     time_bins = pd.date_range("00:00", "23:45", freq="15min").time
     time_to_idx = {t: i for i, t in enumerate(time_bins)}
 
-    while True:
+    psudo_seesion_counter = 0
+    while df_sessions_padded.shape[0] < 200:
 
         if df_sessions_padded.shape[0] == 0:
             df_timeseries_padded = df_agg.copy()
