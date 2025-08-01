@@ -77,13 +77,13 @@ class Optimizer(Simulator):
         input['power'] = [22000 if input["average_power_W"].iloc[j]>input["maxPower"].iloc[j] else input["maxPower"].iloc[j] for j in range(0,len(input))] # in W
 
         # update energy based on previously scheduled
-        input['total_energy_Wh'] = [max(0,input['total_energy'].iloc[x]-self.supplied_energy[str(input['EV_id_x'].iloc[x])])*1000 for x in range(0,len(input))] 
+        input['total_energy_Wh'] = [max(0,input['total_energy'].iloc[x]-self.supplied_energy[str(input['session_id'].iloc[x])])*1000 if input['session_id'].iloc[x]*1000 in self.supplied_energy.keys() else input['total_energy'].iloc[x] for x in range(0,len(input))] 
         # check whether feasible solution still exists. Else, reduce 
         input['energy_uncontrolled_Wh'] = input['power']*((input['end'] - input['start'])/ np.timedelta64(1, 'h'))
         input['energy_deficit'] = [max(0, input['total_energy_Wh'].iloc[j] - input['energy_uncontrolled_Wh'].iloc[j]) for j in range(0, len(input))]
         if len(input)>0:
             if max(input['energy_deficit']) > 0:
-                logger.debug('[WARNING]: EVs {} cannot be feasibly scheduled anymore based on their max power. We reduce their energy demand for the scheduler.'.format(input[input['energy_deficit']>0]['EV_id_x'].to_list()))
+                logger.debug('[WARNING]: EVs {} cannot be feasibly scheduled anymore based on their max power. We reduce their energy demand for the scheduler.'.format(input[input['energy_deficit']>0]['session_id'].to_list()))
                 input['total_energy_Wh'] = input['total_energy_Wh'] - input['energy_deficit']
 
         # discretize 
@@ -136,33 +136,33 @@ class Optimizer(Simulator):
         # logger.debug("after padding sched update\n{}".format(self.sim_profiles))
 
         # old arrivals
-        self.ids_old = input[input['start_time_original']< curr_time]['EV_id_x'].to_list()
+        self.ids_old = input[input['start_time_original']< curr_time]['session_id'].to_list()
         logger.debug('ids old at curr_time {} = {}'.format(curr_time, self.ids_old))
         # update schedule according to charging schedule
         for id in self.ids_old: 
-            if input['EV_id_x'].index.get_loc(input['EV_id_x'].index[input['EV_id_x'] == id].values[0]) in self.focs.instance.J['i0']: 
-                power = self.f['j{}'.format(input['EV_id_x'].index.get_loc(input['EV_id_x'].index[input['EV_id_x'] == id].values[0]))]['i0']*(900/self.focs.instance.len_i[0])/self.focs.instance.tau
+            if input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]) in self.focs.instance.J['i0']: 
+                power = self.f['j{}'.format(input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]))]['i0']*(900/self.focs.instance.len_i[0])/self.focs.instance.tau
                 self.sim_profiles[str(id)][-len(len_i):] = [power for x in range(0,len(len_i))]
 
     def sim_step(self, upcoming, curr_time, breaks, ids_old):
         # new arrivals
         breaks = list(set(breaks))
         breaks.sort()
-        new_ids = [id for id in self.new_ids if upcoming['start_time'][upcoming['EV_id_x'] == id].iloc[0] >= curr_time] # this line makes sure we can run the code outside of the pipeline. 
+        new_ids = [id for id in self.new_ids if upcoming['start_time'][upcoming['session_id'] == id].iloc[0] >= curr_time] # this line makes sure we can run the code outside of the pipeline. 
         logger.debug("new_ids at curr_time {}= {}".format(curr_time, new_ids))
         for id in new_ids:
             # identify index
-            if dt.datetime.combine(dt.datetime(1,1,1), upcoming['start_time'][upcoming['EV_id_x'] == id].iloc[0]) not in breaks:
+            if dt.datetime.combine(dt.datetime(1,1,1), upcoming['start_time'][upcoming['session_id'] == id].iloc[0]) not in breaks:
                 logger.info("[ERROR]: new arrival not actually arriving. (Not in breaks list).")
             else:
                 # count number of intervals where present
-                m_present = len(breaks)-breaks.index(dt.datetime.combine(dt.datetime(1,1,1), upcoming['start_time'][upcoming['EV_id_x'] == id].iloc[0])) -1 # -1 because we care about intervals, not breakpoints
+                m_present = len(breaks)-breaks.index(dt.datetime.combine(dt.datetime(1,1,1), upcoming['start_time'][upcoming['session_id'] == id].iloc[0])) -1 # -1 because we care about intervals, not breakpoints
                 # assign default to end of array
                 self.sim_profiles[id][-m_present:] = [self.power_default_kW for x in range(0,m_present)]    
         # logger.debug("after new sched update\n{}".format(self.sim_profiles))
         
         # departures
-        ids_depart = [id for id in ids_old+new_ids if dt.datetime.combine(dt.datetime(1,1,1),upcoming[upcoming['EV_id_x']==id]['end_time'].iloc[0]) < dt.datetime.combine(dt.datetime(1,1,1,0,0,0),curr_time)+dt.timedelta(minutes=15)]
+        ids_depart = [id for id in ids_old+new_ids if dt.datetime.combine(dt.datetime(1,1,1),upcoming[upcoming['session_id']==id]['end_time'].iloc[0]) < dt.datetime.combine(dt.datetime(1,1,1,0,0,0),curr_time)+dt.timedelta(minutes=15)]
         logger.debug("ids departure at curr_time {} = {}".format(curr_time, ids_depart))
         if len(ids_depart) ==0:
             logger.info('No departures detected at curr_time {}'.format(curr_time))
@@ -171,7 +171,7 @@ class Optimizer(Simulator):
             for id in ids_depart:
                 if len(breaks) > len(set(breaks)):
                     logger.info("[WARNING]: breaks are not unique.")
-                m_absent = len(breaks) - breaks.index(dt.datetime.combine(dt.datetime(1,1,1), upcoming['end_time'][upcoming['EV_id_x'] == id].iloc[0])) -1
+                m_absent = len(breaks) - breaks.index(dt.datetime.combine(dt.datetime(1,1,1), upcoming['end_time'][upcoming['session_id'] == id].iloc[0])) -1
                 # logger.debug("{},{}".format(id,m_absent))
                 self.sim_profiles[id][-m_absent:] = [0 for x in range(0,m_absent)] # offset different from new arrivals. Checked with data though. This is correct.               
         # logger.debug("after departure update\n{}".format(self.sim_profiles))
@@ -181,13 +181,13 @@ class Optimizer(Simulator):
         taus = np.array([x*self.instance.tau/900 for x in self.len_i]) # conversion factors
         for key in self.supplied_energy.keys(): 
             # except 'EV0000' key
-            if key != 'EV0000':
+            if key[1:7] != 'EV0000':
                 self.supplied_energy[key] = sum(np.array(self.sim_profiles[key])*taus)
-        upcoming['served'] = upcoming['EV_id_x'].map(self.supplied_energy)
+        upcoming['served'] = upcoming['session_id'].map(self.supplied_energy)
         upcoming['demand'] = upcoming['total_energy'] - upcoming['served']
         
         # identify completed charging
-        id_complete = upcoming[upcoming['demand']<0]['EV_id_x'].to_list()
+        id_complete = upcoming[upcoming['demand']<0]['session_id'].to_list()
 
         if id_complete:
             logger.debug('id_complete at curr_time {} = {}'.format(curr_time, id_complete))
@@ -195,9 +195,9 @@ class Optimizer(Simulator):
             bp_per_id = []
             for id in id_complete:
                 i = 1
-                while self.supplied_energy[id] - sum((np.array(self.sim_profiles[id])*taus)[-i:]) > upcoming[upcoming['EV_id_x']==id]['total_energy'].iloc[0]:
+                while self.supplied_energy[id] - sum((np.array(self.sim_profiles[id])*taus)[-i:]) > upcoming[upcoming['session_id']==id]['total_energy'].iloc[0]:
                     i+=1
-                demand = upcoming[upcoming['EV_id_x']==id]['total_energy'].iloc[0] - self.supplied_energy[id] + sum((np.array(self.sim_profiles[id])*taus)[-i:])
+                demand = upcoming[upcoming['session_id']==id]['total_energy'].iloc[0] - self.supplied_energy[id] + sum((np.array(self.sim_profiles[id])*taus)[-i:])
                 # seconds to deliver demand
                 delta_secs = math.ceil(self.timeBase*demand/self.sim_profiles[id][-i])
                 bp_per_id += [breaks[-i-1]+dt.timedelta(seconds=delta_secs)]
@@ -227,13 +227,14 @@ class Optimizer(Simulator):
                 self.sim_profiles[id][-m_absent:] = [0 for x in range(0,m_absent)] 
         
     def step(self, curr_time: time, df_agg_timeseries: pd.DataFrame, df_usr_sessions: pd.DataFrame, active_session_info: pd.DataFrame) -> None:
-        sessions = df_usr_sessions
+        self.sessions = df_usr_sessions
         energy_agg = df_agg_timeseries
         upcoming = active_session_info
 
         logger.info('Generate sessions from predicted energy and occupancy profile.')
         # generate dummy sessions from forecast
-        input = generate_sessions_from_profile(sessions, energy_agg, curr_time)
+        logger.debug(self.sessions)
+        input = generate_sessions_from_profile(self.sessions, energy_agg, curr_time)
 
         logger.info('start optimizer.step() at curr_time {}'.format(curr_time))
         input = input.loc[input['end_datetime'].notnull()]
@@ -276,7 +277,7 @@ class Optimizer(Simulator):
         taus = np.array([x*self.instance.tau/900 for x in self.len_i]) # conversion factors
         for key in self.supplied_energy.keys(): 
             # except 'EV0000' key
-            if key != 'EV0000':
+            if key[1:7] != 'EV0000':
                 self.supplied_energy[key] = sum(np.array(self.sim_profiles[key])*taus)
 
         logger.debug('end of optimizer.step at tick {}'.format(curr_time))
@@ -303,8 +304,9 @@ class Optimizer(Simulator):
         ## Metrics per job
 
         # ENS exact
-        self.jobs_ens_abs_exact = [real_data['total_energy'].loc[real_data['EV_id_x']==id].iloc[0] - self.state['supplied_energy'].loc[id] for id in ids]
-        self.jobs_ens_rel_exact = [self.jobs_ens_abs_exact[self.state['idx'].loc[id]]/real_data['total_energy'].loc[real_data['EV_id_x']==id].iloc[0] for id in ids]
+        self.jobs_ens_abs_exact = [real_data['total_energy'].loc[real_data['session_id']==id].iloc[0] - self.state['supplied_energy'].loc[id] for id in ids]
+        self.jobs_ens_rel_exact = [self.jobs_ens_abs_exact[self.state['idx'].loc[id]]/real_data['total_energy'].loc[real_data['session_id']==id].iloc[0] for id in ids]
+        
         # ENS rounded and >= 0
         self.jobs_ens_abs = [round(max(0,x),6) for x in self.jobs_ens_abs_exact]
         self.jobs_ens_rel = [round(max(0,x),6) for x in self.jobs_ens_rel_exact]
@@ -379,8 +381,7 @@ class Optimizer(Simulator):
 
         # determine first interval with positive charge
         # FIXME only 135 entries instead of 139!! --> has to do with non-unique EVids. Some EVs register for 2 charging sessions in a single day.
-        first_pos_charging_power = [self.sim_profiles[id].index([i for i in self.sim_profiles[id] if i!=0][0]) for id in self.sim_profiles.keys() if id != 'EV0000']
-        # idx_start_charging = [self.focs.instance.J_inverse['j'+str(j)][first_pos_charging_power[self.focs.instance.jobs.index(j)]] for j in self.focs.instance.jobs]
+        first_pos_charging_power = [self.sim_profiles[id].index([i for i in self.sim_profiles[id] if i!=0][0]) for id in self.sim_profiles.keys() if id[1:7] != 'EV0000']
         t_start_charging = [dt.datetime.combine(data['start_datetime'].iloc[0].date(),self.breaks[i].time()) for i in first_pos_charging_power]
 
         # determine qos2
@@ -403,7 +404,7 @@ class Optimizer(Simulator):
         jobs_qos3_powervar_real = []
         
         for id in self.sim_profiles.keys():
-            if id != 'EV0000':
+            if id[1:7] != 'EV0000':
                 if len(self.len_i) != len(self.sim_profiles[id]):
                     logger.debug("[WARNING]: sim_profiles has different number of intervals than len_i.")
                 # list of powers per second
@@ -423,7 +424,7 @@ class Optimizer(Simulator):
                 t_end = max(temp)+1
 
                 # qos for j add to list
-                jobs_qos3_powervar_real += [1 - (2*statistics.pstdev(s_j[t_start:t_end])/data[data['EV_id_x'] == id]['power'].iloc[0]) ]
+                jobs_qos3_powervar_real += [1 - (2*statistics.pstdev(s_j[t_start:t_end])/data[data['session_id'] == id]['power'].iloc[0]) ]
 
         return jobs_qos3_powervar_real
     
@@ -432,8 +433,8 @@ class Optimizer(Simulator):
             logger.info("[WARNING]: breaks are not unique at QoE step")
             self.breaks = list(set(self.breaks))
             self.breaks.sort()
-        if len(self.breaks) != len(self.sim_profiles[id]):
-            logger.debug('[WARNING]: breaks doesnt correspond to profile intervals...')
+        if len(self.breaks) != len(self.sim_profiles[id])+1:
+            logger.debug('[WARNING]: breaks doesnt correspond to profile intervals + 1')
             logger.debug('len breaks vs len profile: {}, {}'.format(len(self.breaks), len(self.sim_profiles[id])))
         if milestone_t not in self.breaks:
             logger.info('[ERROR]: Milestones should be in breakpoints (e.g., 15 min intervals)! Returning no value.')
@@ -449,7 +450,7 @@ class Optimizer(Simulator):
         for milestone in milestones_j:
             supplied = self.supplied_by_milestone(id, milestone[1], taus)
             # check if made milestone or fully charged for this milestone. 
-            if supplied < min(milestone[0],data[data['EV_id_x']==id]['total_energy'].iloc[0])-err:
+            if supplied < min(milestone[0],data[data['session_id']==id]['total_energy'].iloc[0])-err:
                 return 0
         return 1
 
@@ -459,12 +460,12 @@ class Optimizer(Simulator):
         # if button is off, make guarantee static asr
         if milestones_predef is None:
             # add asr milestones: 23kWh by 4pm (if quarters then by quarter 64)
-            milestones = [[[23,dt.datetime.combine(dt.datetime(1,1,1), dt.time(hour=16))]] for id in data['EV_id_x']] # if multiple guarantees, energy is additive!
+            milestones = [[[23,dt.datetime.combine(dt.datetime(1,1,1), dt.time(hour=16))]] for id in data['session_id']] # if multiple guarantees, energy is additive!
         else:
             milestones = milestones_predef
 
-        jobs_qoe_real = [self.qoe_j(data,data['EV_id_x'].iloc[j], milestones[j]) for j in range(0, len(data))]
         logger.debug('\n\n jobs qoe real {}'.format(jobs_qoe_real))
+        jobs_qoe_real = [self.qoe_j(data,data['session_id'].iloc[j], milestones[j]) for j in range(0, len(data))]
         return jobs_qoe_real
 
     def publish_results(self, output_dir: str, prefix: Optional[str] = None) -> None:
@@ -472,16 +473,21 @@ class Optimizer(Simulator):
         prefix = 'focs'
         f_name = "sim_profiles.csv" if prefix == None else f"{prefix}_sim_profiles.parquet"
         file_path = os.path.join(output_dir, f_name)
-        self.sim_profiles.to_csv(file_path)
+        self.sim_profiles['start_time'] = [x.time for x in list(set(self.breaks))[:-1]]
+        pd.DataFrame(self.sim_profiles).to_csv(file_path)
+        del self.sim_profiles['start_time']
 
         f_name = "supplied_energy.csv" if prefix == None else f"{prefix}_supplied_energy.parquet"
         file_path = os.path.join(output_dir, f_name)
-        self.supplied_energy.to_csv(file_path)
+        pd.DataFrame(self.supplied_energy, index=[0]).to_csv(file_path)
 
         # evaluate qos and qoe and fairness metrics
-        self.evaluate(real_data=self.input)
-        mets_jobs = {'ids': self.input['EV_id_x'].to_list(), 'day':[self.input['start_datetime'].iloc[0].date for i in range(0,len(self.input))], 'ens_abs_exact': self.jobs_ens_abs_exact, 'ens_rel_exact': self.jobs_ens_rel_exact,'ens_abs': self.jobs_ens_abs, 'ens_rel': self.jobs_ens_rel, 'qos1': self.jobs_es_rel, 'qos2': self.jobs_qos2_waiting_real, 'qos3': self.jobs_qos3_powervar_real, 'qoe': self.jobs_qoe_real}
-        mets_global = {'day':[self.input['start_datetime'].iloc[0].date for i in range(0,len(self.input))], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos3_min': [self.qos_3_real_min], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg] }
+        self.breaks = list(set(self.breaks))
+        self.evaluate(real_data=self.sessions)
+        if len(self.sessions) != len(self.jobs_ens_abs):
+            logger.error('Day likely contains >= 2 sessions by a single EV. Cannot save qosqoe metrics.')
+        mets_jobs = {'ids': self.sessions['session_id'].to_list(), 'day':[self.sessions['start_datetime'].iloc[0].date for i in range(0,len(self.sessions))], 'ens_abs_exact': self.jobs_ens_abs_exact, 'ens_rel_exact': self.jobs_ens_rel_exact,'ens_abs': self.jobs_ens_abs, 'ens_rel': self.jobs_ens_rel, 'qos1': self.jobs_es_rel, 'qos2': self.jobs_qos2_waiting_real, 'qos3': self.jobs_qos3_powervar_real, 'qoe': self.jobs_qoe_real}
+        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos3_min': [self.qos_3_real_min], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg] }
         
         f_name = "qosqoe.csv" if prefix == None else f"{prefix}_qosqoe.parquet"
         file_path = os.path.join(output_dir, f_name)
