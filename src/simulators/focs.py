@@ -41,7 +41,7 @@ class Optimizer(Simulator):
         logger.info('initialization of optimizer - new day')
         # placeholder network and flow
         self.len_i = []
-        self.supplied_energy = {'EV0000':0}
+        self.supplied_energy = {}
         self.sim_profiles = {}
         self.breaks = []
         self.offset = 0 # used to increase robustness to steps with non-consecutive intervals
@@ -65,7 +65,7 @@ class Optimizer(Simulator):
             upcoming = upcoming[upcoming['end_time']>curr_time]
 
         # add new ids to dataframe
-        self.new_ids = [key for key in upcoming['EV_id_x'].unique() if key not in self.supplied_energy.keys()] # no dataleakage. Just bookkeeping.
+        self.new_ids = [key for key in upcoming['session_id'].unique() if key not in self.supplied_energy.keys()] # no dataleakage. Just bookkeeping.
         # logger.debug("new ids this step: {}".format(self.new_ids))
         for id in self.new_ids:
             self.supplied_energy[str(id)] = 0
