@@ -473,10 +473,16 @@ class Optimizer(Simulator):
         prefix = 'focs'
         f_name = "sim_profiles.csv" if prefix == None else f"{prefix}_sim_profiles.parquet"
         file_path = os.path.join(output_dir, f_name)
-        self.sim_profiles['start_time'] = [x.time for x in list(set(self.breaks))[:-1]]
+        self.breaks = list(set(self.breaks))
+        self.breaks.sort()
+        self.sim_profiles['agg'] = [sum([self.sim_profiles[y][x] for y in self.sim_profiles.keys() if y != 'EV0000']) for x in range(0,len(set(self.breaks))-1)]
+        self.sim_profiles['start_time'] = [x.time() for x in self.breaks[:-1]]
+        self.sim_profiles['start'] = [(x - x.replace(hour=0, minute=0, second=0)).seconds for x in self.breaks[:-1]]
         pd.DataFrame(self.sim_profiles).to_parquet(file_path)
         pd.DataFrame(self.sim_profiles).to_csv(os.path.join(output_dir,'{}_sim_profiles.csv'.format(prefix)))
         del self.sim_profiles['start_time']
+        del self.sim_profiles['agg']
+        del self.sim_profiles['start']
 
         f_name = "supplied_energy.csv" if prefix == None else f"{prefix}_supplied_energy.parquet"
         file_path = os.path.join(output_dir, f_name)
