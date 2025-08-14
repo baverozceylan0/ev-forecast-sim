@@ -201,6 +201,7 @@ class Optimizer(Simulator):
                 # seconds to deliver demand
                 delta_secs = math.ceil(self.timeBase*demand/self.sim_profiles[id][-i])
                 bp_per_id += [breaks[-i-1]+dt.timedelta(seconds=delta_secs)]
+                logger.debug('id, i, demand, deltasecs - {}, {}, {}, {}'.format(id, i, demand, delta_secs))
 
             list(set(self.breaks))
             self.breaks.sort()
@@ -470,7 +471,7 @@ class Optimizer(Simulator):
 
     def publish_results(self, output_dir: str, prefix: Optional[str] = None) -> None:
         os.makedirs(output_dir, exist_ok=True)
-        prefix = 'focs'
+        prefix = '{}_focs'.format(self.sessions['start_datetime'].iloc[0].date())
         f_name = "sim_profiles.csv" if prefix == None else f"{prefix}_sim_profiles.parquet"
         file_path = os.path.join(output_dir, f_name)
         self.breaks = list(set(self.breaks))

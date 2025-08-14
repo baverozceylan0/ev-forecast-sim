@@ -419,6 +419,23 @@ class ModelEvaluationPipeline(FlowSpec):
                 logger.error(err)
                 
 
+        # read in parquets and combine
+        # globalmets = []
+        # prefix = 'focs'
+        # for date in unique_dates[-10:]:
+        #     try:
+        #         file = os.path.join(self.results_folder,"{}_{}_globalmetrics.parquet".format(date,prefix))
+        #         # df = pd.read_parquet(file)
+        #         # globalmets += [df]
+        #         globalmets += [pd.read_parquet(file)]
+        #     except:
+        #         logger.debug('[WARNING]: could not find parquet for date {}.'.format(date))
+        # # globalmets = pd.concat([pd.read_parquet("{}_llyncs_globalmetrics.parquet".format(date)) for date in unique_dates[2:10]])
+        # globalmets = pd.concat(globalmets)
+        # file = os.path.join(self.results_folder,"{}_globalmetrics.csv".format(prefix))
+        # globalmets.to_csv(file)
+        # file = os.path.join(self.results_folder,"{}_globalmetrics.parquet".format(prefix))
+        # globalmets.to_parquet(file)
 
         self.next(self.end)    
 
