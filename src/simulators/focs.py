@@ -326,8 +326,8 @@ class Optimizer(Simulator):
         ## Global metrics
 
         # #QOE total
-        self.qoe_real_total_exact = sum(self.jobs_qoe_real)
-        self.qoe_real_ed_total_rel = self.qoe_real_total_exact/len(real_data)
+        self.qoe_total_exact = sum(self.jobs_qoe_real)
+        self.qoe_total_rel = self.qoe_total_exact/len(real_data)
 
         # ENS max
         self.jobs_ens_abs_max = max(self.jobs_ens_abs)

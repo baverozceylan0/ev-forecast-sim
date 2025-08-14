@@ -330,8 +330,8 @@ class LYNCS(Simulator):
         ## Global metrics
 
         # #QOE total
-        self.qoe_real_total_exact = sum(self.jobs_qoe_real)
-        self.qoe_real_ed_total_rel = self.qoe_real_total_exact/len(real_data)
+        self.qoe_total_exact = sum(self.jobs_qoe_real)
+        self.qoe_total_rel = self.qoe_total_exact/len(real_data)
 
         # ENS max
         self.jobs_ens_abs_max = max(self.jobs_ens_abs)
@@ -494,7 +494,7 @@ class LYNCS(Simulator):
         if len(self.sessions) != len(self.jobs_ens_abs):
             logger.error('Day likely contains >= 2 sessions by a single EV. Cannot save qosqoe metrics.')
         mets_jobs = {'ids': self.sessions['session_id'].to_list(), 'day':[self.sessions['start_datetime'].iloc[0].date() for i in range(0,len(self.sessions))], 'ens_abs_exact': self.jobs_ens_abs_exact, 'ens_rel_exact': self.jobs_ens_rel_exact,'ens_abs': self.jobs_ens_abs, 'ens_rel': self.jobs_ens_rel, 'qos1': self.jobs_es_rel, 'qos2': self.jobs_qos2_waiting_real, 'qos3': self.jobs_qos3_powervar_real, 'qoe': self.jobs_qoe_real}
-        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date()], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos3_min': [self.qos_3_real_min], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg] }
+        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date()], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos3_min': [self.qos_3_real_min], 'qoe_total_exact': [self.qoe_total_exact], 'qoe_total_rel': [self.qoe_total_rel], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg] }
         
         f_name = "qosqoe.csv" if prefix == None else f"{prefix}_qosqoe.parquet"
         file_path = os.path.join(output_dir, f_name)
