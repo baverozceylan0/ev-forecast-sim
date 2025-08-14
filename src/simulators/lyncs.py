@@ -479,13 +479,13 @@ class LYNCS(Simulator):
         f_name = "sim_profiles.csv" if prefix == None else f"{prefix}_sim_profiles.parquet"
         file_path = os.path.join(output_dir, f_name)
         self.sim_profiles['start_time'] = [x.time for x in list(set(self.breaks))[:-1]]
-        pd.DataFrame(self.sim_profiles).to_csv(file_path)
+        pd.DataFrame(self.sim_profiles).to_parquet(file_path)
         pd.DataFrame(self.sim_profiles).to_csv(os.path.join(output_dir,'llyncs_sim_profiles.csv'))
         del self.sim_profiles['start_time']
 
         f_name = "supplied_energy.csv" if prefix == None else f"{prefix}_supplied_energy.parquet"
         file_path = os.path.join(output_dir, f_name)
-        pd.DataFrame(self.supplied_energy, index=[0]).to_csv(file_path)
+        pd.DataFrame(self.supplied_energy, index=[0]).to_parquet(file_path)
         pd.DataFrame(self.supplied_energy, index=[0]).to_csv(os.path.join(output_dir,'llyncs_supplied_energy.csv'))
 
         # evaluate qos and qoe and fairness metrics
@@ -498,12 +498,12 @@ class LYNCS(Simulator):
         
         f_name = "qosqoe.csv" if prefix == None else f"{prefix}_qosqoe.parquet"
         file_path = os.path.join(output_dir, f_name)
-        pd.DataFrame(data=mets_jobs).to_csv(file_path)
+        pd.DataFrame(data=mets_jobs).to_parquet(file_path)
         pd.DataFrame(data=mets_jobs).to_csv(os.path.join(output_dir,"llyncs_qosqoe.csv"))
         
         f_name = "globalmetrics.csv" if prefix == None else f"{prefix}_globalmetrics.parquet"
         file_path = os.path.join(output_dir, f_name)
-        pd.DataFrame(data=mets_global).to_csv(file_path)
+        pd.DataFrame(data=mets_global).to_parquet(file_path)
         pd.DataFrame(data=mets_global).to_csv(os.path.join(output_dir, "llyncs_globalmetrics.csv"))
         logger.debug('what does the lynx say? l;ajsdf;llkdkjfjkdkdsfkkdkdkdkdkdkdkdkdkdkdkdkdk')
         logger.info('Evaluation of current day {} complete'.format(self.sessions['start_datetime'].iloc[0].date()))
