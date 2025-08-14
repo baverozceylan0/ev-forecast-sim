@@ -235,7 +235,7 @@ class LYNCS(Simulator):
 
             for idx, id in enumerate(id_complete): #FIXME
                 # set power to 0 after charging is complete.
-                m_absent = len(self.breaks) - self.breaks.index(bp_per_id[idx]) -1
+                m_absent = len(self.breaks) - self.breaks.index(bp_per_id[idx]) 
                 self.sim_profiles[id][-m_absent:] = [0 for x in range(0,m_absent)] 
         
     def step(self, curr_time: time, df_agg_timeseries: pd.DataFrame, df_usr_sessions: pd.DataFrame, active_session_info: pd.DataFrame) -> None:
