@@ -77,7 +77,7 @@ class Optimizer(Simulator):
         input['power'] = [22000 if input["average_power_W"].iloc[j]>input["maxPower"].iloc[j] else input["maxPower"].iloc[j] for j in range(0,len(input))] # in W
 
         # update energy based on previously scheduled
-        input['total_energy_Wh'] = [max(0,input['total_energy'].iloc[x]-self.supplied_energy[str(input['session_id'].iloc[x])])*1000 if input['session_id'].iloc[x]*1000 in self.supplied_energy.keys() else input['total_energy'].iloc[x] for x in range(0,len(input))] 
+        input['total_energy_Wh'] = [max(0,input['total_energy'].iloc[x]-self.supplied_energy[str(input['session_id'].iloc[x])])*1000 if input['session_id'].iloc[x] in self.supplied_energy.keys() else input['total_energy'].iloc[x]*1000 for x in range(0,len(input))] 
         # check whether feasible solution still exists. Else, reduce 
         input['energy_uncontrolled_Wh'] = input['power']*((input['end'] - input['start'])/ np.timedelta64(1, 'h'))
         input['energy_deficit'] = [max(0, input['total_energy_Wh'].iloc[j] - input['energy_uncontrolled_Wh'].iloc[j]) for j in range(0, len(input))]
