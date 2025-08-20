@@ -44,6 +44,8 @@ class OA_benchmark(Simulator):
         self.time_bins = pd.date_range("00:00", "23:45", freq="15min").time
         self.time_to_idx = {t: i for i, t in enumerate(self.time_bins)}
 
+        self.identifier = 'oa'
+
     def initilize(self) -> None:
         logger.info('---------------------------------------')
         logger.info('---------------------------------------')
