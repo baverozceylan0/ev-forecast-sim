@@ -300,6 +300,9 @@ class LYNCS(Simulator):
             logger.debug('[WARNING]: data likely contains non-unique EV-ids. Evaluation indices are messed up.')
         logger.debug('start evaluation step')
 
+        # sorting breaks (again....) cause QOS2 broke...
+        self.breaks.sort()
+        
         # supplied energy to dataframe
         self.state = pd.DataFrame.from_dict(self.supplied_energy, orient='index',columns=['supplied_energy'])
         # drop 'EV0000' line
