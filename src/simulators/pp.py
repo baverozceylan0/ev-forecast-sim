@@ -214,7 +214,7 @@ class OA_benchmark(Simulator):
 
             '''--------------bookkeeping--------------'''
             # update supplied energy
-            taus = np.array([x*self.instance.tau/900 for x in self.len_i]) # conversion factors
+            taus = np.array([x*self.instance.tau for x in self.len_i]) # conversion factors
             for key in input['session_id'].unique(): 
                 # except 'EV0000' key
                 if key[1:7] != 'EV0000':
