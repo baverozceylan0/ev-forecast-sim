@@ -34,6 +34,7 @@ import logging
 
 from src.simulators.edf import EDF
 from src.simulators.focs import Optimizer
+from src.simulators.pp import OA_benchmark
 from src.simulators.lyncs import LYNCS
 
 LOGGER_LVL = logging.DEBUG
