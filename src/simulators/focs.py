@@ -275,7 +275,7 @@ class Optimizer(Simulator):
         
         '''--------------bookkeeping--------------'''
         # update supplied energy
-        taus = np.array([x*self.instance.tau/900 for x in self.len_i]) # conversion factors
+        taus = np.array([x*self.instance.tau/self.timeStep for x in self.len_i]) # conversion factors
         for key in self.supplied_energy.keys(): 
             # except 'EV0000' key
             if key[1:7] != 'EV0000':
