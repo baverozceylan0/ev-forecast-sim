@@ -245,6 +245,11 @@ class LYNCS(Simulator):
         energy_agg = df_agg_timeseries
         upcoming = active_session_info
 
+        if len(upcoming) == 0:
+            # FIXME save 0s and breaks and continue.
+            logger.debug('werwolf')
+            return
+
         logger.info('Generate sessions from predicted energy and occupancy profile.')
         # generate dummy sessions from forecast
         input = generate_sessions_from_profile(self.sessions, energy_agg, curr_time)
