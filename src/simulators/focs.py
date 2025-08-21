@@ -129,8 +129,8 @@ class Optimizer(Simulator):
         len_i = [(breaks[i] - breaks[i-1]).total_seconds() for i in range(1,len(breaks))]
         self.len_i += len_i
         # logger.debug("leni = {}".format(len_i))
-        if sum(len_i) != 900:
-            logger.info("[WARNGING]: Interval broken into subintervals that sum to {} seconds (<900)!".format(sum(len_i)))
+        if sum(len_i) != self.timeStep:
+            logger.info("[WARNGING]: Interval broken into subintervals that sum to {} seconds (<{})!".format(sum(len_i), self.timeStep))
         
         # pad with zeros for all evs
         for id in self.sim_profiles.keys():
@@ -143,7 +143,7 @@ class Optimizer(Simulator):
         # update schedule according to charging schedule
         for id in self.ids_old: 
             if input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]) in self.focs.instance.J['i0']: 
-                power = self.f['j{}'.format(input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]))]['i0']*(900/self.focs.instance.len_i[0])/self.focs.instance.tau
+                power = self.f['j{}'.format(input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]))]['i0']*(self.timeStep/self.focs.instance.len_i[0])/self.focs.instance.tau
                 self.sim_profiles[str(id)][-len(len_i):] = [power for x in range(0,len(len_i))]
 
     def sim_step(self, upcoming, curr_time, breaks, ids_old):
@@ -178,7 +178,7 @@ class Optimizer(Simulator):
 
         # energy completed
         # update supplied energy
-        taus = np.array([x*self.instance.tau/900 for x in self.len_i]) # conversion factors
+        taus = np.array([x*self.instance.tau/self.timeStep for x in self.len_i]) # conversion factors
         for key in self.supplied_energy.keys(): 
             # except 'EV0000' key
             if key[1:7] != 'EV0000':
