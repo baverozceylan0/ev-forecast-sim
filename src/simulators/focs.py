@@ -299,7 +299,6 @@ class Optimizer(Simulator):
         # supplied energy to dataframe
         self.state = pd.DataFrame.from_dict(self.supplied_energy, orient='index',columns=['supplied_energy'])
         # drop 'EV0000' line
-        self.state.drop(['EV0000'], inplace=True)
         try:
             self.state.drop(['EV0000'],inplace=True)
         except:
