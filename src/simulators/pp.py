@@ -328,28 +328,38 @@ class OA_benchmark(Simulator):
 
         return jobs_qos3_powervar_real
     
-    def supplied_by_milestone(self,id,milestone_t, taus):
+    def supplied_by_milestone(self,id,milestone_t):
         if len(self.breaks) > len(set(self.breaks)):
             logger.info("[WARNING]: breaks are not unique at QoE step")
             self.breaks = list(set(self.breaks))
             self.breaks.sort()
-        if len(self.breaks) != len(self.sim_profiles[id])+1:
+        if len(self.breaks) != len(self.sim_profiles[id]): # =1 in other sims. 
             logger.debug('[WARNING]: breaks doesnt correspond to profile intervals + 1')
             logger.debug('len breaks vs len profile: {}, {}'.format(len(self.breaks), len(self.sim_profiles[id])))
         if milestone_t not in self.breaks:
-            logger.error('Milestones should be in breakpoints (e.g., 15 min intervals)! Returning no value.')
-            logger.error('FIXME!!!! Returning 0 now')
-            return 0
+            logger.info('[WARNING]: Milestone_t = {} not in breakpoints. Adding breakpoint and updating sim_profiles.'.format(milestone_t))
+            # augment all sim profiles
+            # identify index to split up in two intervals
+            i = sum(b < milestone_t for b in self.breaks)-1
+            # insert intermediate breakpoint in all power profiles
+            for key in self.sim_profiles.keys():
+                self.sim_profiles[key] = self.sim_profiles[key][:i] + [self.sim_profiles[key][i]] + self.sim_profiles[key][i:]
+            # add to breaks
+            self.breaks += [milestone_t]
+            self.breaks.sort()
+            self.len_i = [(self.breaks[i] - self.breaks[i-1]).total_seconds() for i in range(1,len(self.breaks))] + [1] # the +1 only applies if padded sim_profiles with a 0 at the end.
+            self.taus = np.array([x*self.instance.tau/self.timeStep for x in self.len_i]) # conversion factors
+
         m_absent = len(self.breaks) - self.breaks.index(milestone_t) -1
-        supplied = sum(np.array(self.sim_profiles[id][:-m_absent])*taus[:-m_absent])
+        supplied = sum(np.array(self.sim_profiles[id][:-m_absent])*self.taus[:-m_absent])
         #FIXME doublecheck index offset
 
         return supplied
 
     def qoe_j(self,data,id,milestones_j, err=0.0000001):
-        taus = np.array([x*self.instance.tau/900 for x in self.len_i]) # conversion factors
+        self.taus = np.array([x*self.instance.tau/self.timeStep for x in self.len_i]) # conversion factors
         for milestone in milestones_j:
-            supplied = self.supplied_by_milestone(id, milestone[1], taus)
+            supplied = self.supplied_by_milestone(id, milestone[1])
             # check if made milestone or fully charged for this milestone. 
             if supplied < min(milestone[0],data[data['session_id']==id]['total_energy'].iloc[0])-err:
                 return 0
