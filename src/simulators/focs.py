@@ -161,7 +161,6 @@ class Optimizer(Simulator):
                 m_present = len(breaks)-breaks.index(dt.datetime.combine(dt.datetime(1,1,1), upcoming['start_time'][upcoming['session_id'] == id].iloc[0])) -1 # -1 because we care about intervals, not breakpoints
                 # assign default to end of array
                 self.sim_profiles[id][-m_present:] = [self.power_default_kW for x in range(0,m_present)]    
-        # logger.debug("after new sched update\n{}".format(self.sim_profiles))
         
         # departures
         ids_depart = [id for id in ids_old+new_ids if dt.datetime.combine(dt.datetime(1,1,1),upcoming[upcoming['session_id']==id]['end_time'].iloc[0]) < dt.datetime.combine(dt.datetime(1,1,1,0,0,0),curr_time)+dt.timedelta(minutes=15)]
@@ -176,7 +175,6 @@ class Optimizer(Simulator):
                 m_absent = len(breaks) - breaks.index(dt.datetime.combine(dt.datetime(1,1,1), upcoming['end_time'][upcoming['session_id'] == id].iloc[0])) -1
                 # logger.debug("{},{}".format(id,m_absent))
                 self.sim_profiles[id][-m_absent:] = [0 for x in range(0,m_absent)] # offset different from new arrivals. Checked with data though. This is correct.               
-        # logger.debug("after departure update\n{}".format(self.sim_profiles))
 
         # energy completed
         # update supplied energy
@@ -236,7 +234,6 @@ class Optimizer(Simulator):
 
         logger.info('Generate sessions from predicted energy and occupancy profile.')
         # generate dummy sessions from forecast
-        logger.debug(self.sessions)
         input = generate_sessions_from_profile(self.sessions, energy_agg, curr_time)
 
         logger.info('start optimizer.step() at curr_time {}'.format(curr_time))
@@ -468,8 +465,6 @@ class Optimizer(Simulator):
             milestones = [[[23,dt.datetime.combine(dt.datetime(1,1,1), dt.time(hour=16))]] for id in data['session_id']] # if multiple guarantees, energy is additive!
         else:
             milestones = milestones_predef
-
-        logger.debug('\n\n jobs qoe real {}'.format(jobs_qoe_real))
         jobs_qoe_real = [self.qoe_j(data,data['session_id'].iloc[j], milestones[j]) for j in range(0, len(data))]
         return jobs_qoe_real
 

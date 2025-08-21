@@ -302,7 +302,7 @@ class LYNCS(Simulator):
 
         # sorting breaks (again....) cause QOS2 broke...
         self.breaks.sort()
-        
+
         # supplied energy to dataframe
         self.state = pd.DataFrame.from_dict(self.supplied_energy, orient='index',columns=['supplied_energy'])
         # drop 'EV0000' line
@@ -489,7 +489,7 @@ class LYNCS(Simulator):
         self.sim_profiles['start_time'] = [x.time() for x in self.breaks[:-1]]
         self.sim_profiles['start'] = [(x - x.replace(hour=0, minute=0, second=0)).seconds for x in self.breaks[:-1]]
         pd.DataFrame(self.sim_profiles).to_parquet(file_path)
-        pd.DataFrame(self.sim_profiles).to_csv(os.path.join(output_dir,'llyncs_sim_profiles.csv'))
+        pd.DataFrame(self.sim_profiles).to_csv(os.path.join(output_dir,'{}_sim_profiles.csv'.format(prefix)))
         del self.sim_profiles['start_time']
         del self.sim_profiles['agg']
         del self.sim_profiles['start']
@@ -497,7 +497,7 @@ class LYNCS(Simulator):
         f_name = "supplied_energy.csv" if prefix == None else f"{prefix}_supplied_energy.parquet"
         file_path = os.path.join(output_dir, f_name)
         pd.DataFrame(self.supplied_energy, index=[0]).to_parquet(file_path)
-        pd.DataFrame(self.supplied_energy, index=[0]).to_csv(os.path.join(output_dir,'llyncs_supplied_energy.csv'))
+        pd.DataFrame(self.supplied_energy, index=[0]).to_csv(os.path.join(output_dir,'{}_supplied_energy.csv'.format(prefix)))
 
         # evaluate qos and qoe and fairness metrics
         self.breaks = list(set(self.breaks))
@@ -510,11 +510,11 @@ class LYNCS(Simulator):
         f_name = "qosqoe.csv" if prefix == None else f"{prefix}_qosqoe.parquet"
         file_path = os.path.join(output_dir, f_name)
         pd.DataFrame(data=mets_jobs).to_parquet(file_path)
-        pd.DataFrame(data=mets_jobs).to_csv(os.path.join(output_dir,"llyncs_qosqoe.csv"))
+        pd.DataFrame(data=mets_jobs).to_csv(os.path.join(output_dir,"{}_qosqoe.csv".format(prefix)))
         
         f_name = "globalmetrics.csv" if prefix == None else f"{prefix}_globalmetrics.parquet"
         file_path = os.path.join(output_dir, f_name)
         pd.DataFrame(data=mets_global).to_parquet(file_path)
-        pd.DataFrame(data=mets_global).to_csv(os.path.join(output_dir, "llyncs_globalmetrics.csv"))
+        pd.DataFrame(data=mets_global).to_csv(os.path.join(output_dir, "{}_globalmetrics.csv".format(prefix)))
         logger.debug('what does the lynx say? l;ajsdf;llkdkjfjkdkdsfkkdkdkdkdkdkdkdkdkdkdkdkdk')
         logger.info('Evaluation of current day {} complete'.format(self.sessions['start_datetime'].iloc[0].date()))

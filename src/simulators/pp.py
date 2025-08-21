@@ -100,46 +100,6 @@ class OA_benchmark(Simulator):
 
         return input, upcoming
 
-
-
-    def focs_scheduler(self,input, upcoming, curr_time):
-        logger.debug('started focs_Scheduler')
-        '''-------------define and solve FOCS instance ----------------'''
-
-        '''-------------save schedule-----------------------'''
-        # check if intervals are 900 seconds apart from previous time:
-        if self.breaks:
-            if self.breaks[-1] == dt.datetime.combine(dt.datetime(1,1,1),curr_time):
-                logger.debug("Normal execution mode: consecutive 15 min intervals detected")
-                self.offset = 0
-                pass
-            else:
-                logger.info("[WARNING]: Abnormal execution mode: non-consecutive 15 minute intervals detected.\nSchedule for intermediate time steps has not been recorded.")
-                self.offset = 1
-                self.len_i +=[(dt.datetime.combine(dt.datetime(1,1,1), curr_time)-self.breaks[-1]).total_seconds()]
-
-        # pad with zeros for all evs
-        for id in self.sim_profiles.keys():
-            self.sim_profiles[str(id)] += [0 for x in range(0,len(self.len_i)+self.offset)]
-        # logger.debug("after padding sched update\n{}".format(self.sim_profiles))
-
-        # old arrivals
-        self.ids_old = input[input['start_time_original']< curr_time]['session_id'].to_list()
-        # logger.debug('ids old at curr_time {} = {}'.format(curr_time, self.ids_old))
-        # update schedule according to charging schedule
-        for id in self.ids_old: 
-            if input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]) in self.focs.instance.J['i0']: 
-                power = self.f['j{}'.format(input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]))]['i0']*(900/self.focs.instance.len_i[0])/self.focs.instance.tau
-                self.sim_profiles[str(id)][-len(self.len_i):] = [power for x in range(0,len(self.len_i))]
-
-    def sim_step(self, upcoming, curr_time, breaks, ids_old):
-        logger.debug('start sim_step()')
-        logger.debug('sim profiles beginning of sim step\n{}'.format(self.sim_profiles))
-        # new arrivals
-        breaks = list(set(breaks))
-        breaks.sort()
-
-
     def flow_to_dataframe(self, f):
         # flow to dataframe - format schedule
         s = [self.oa.instance.I_a] + [self.oa.instance.intervals_start] + [self.breaks[:-1]] + [self.len_i] + [[f['i'+str(i)]['t']/self.oa.instance.tau /self.oa.instance.len_i[i] for i in self.oa.instance.I_a]] + [[0]*len(self.oa.instance.I_a) for j in self.oa.instance.jobs]
@@ -211,7 +171,6 @@ class OA_benchmark(Simulator):
 
             # save OA to self.sim_profiles
             for idx, id in enumerate(input['session_id'].unique()):
-                logger.debug('id, idx = {}, {}'.format(id, idx))
                 self.sim_profiles[id] = schedule['j'+str(idx)].to_list()
 
             '''--------------bookkeeping--------------'''
