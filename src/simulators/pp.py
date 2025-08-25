@@ -272,6 +272,8 @@ class OA_benchmark(Simulator):
         return
     
     def Jain(self, x):
+        if len(x) * sum([x_i**2 for x_i in x]) == 0:
+            return 1 # all equally bad, therefore fair. 
         return sum(x)**2/(len(x) * sum([x_i**2 for x_i in x]))
     
     def Hossfeld(self, x, H = 1, h = 0):
