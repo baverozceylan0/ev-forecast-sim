@@ -6,6 +6,7 @@ mlruns
 outputs
 models/*
 workspace.ipynb
+notebooks_local/*
 
 
 # ------------- Template ---------------
