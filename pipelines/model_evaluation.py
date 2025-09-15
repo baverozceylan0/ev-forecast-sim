@@ -34,8 +34,11 @@ import logging
 
 from src.simulators.edf import EDF
 from src.simulators.focs import Optimizer
+from src.simulators.uncontrolled import Uncontrolled
 from src.simulators.pp import OA_benchmark
 from src.simulators.lyncs import LYNCS
+from src.simulators.llyncs import lLYNCS
+from src.simulators.almightyoracle import Oracle_benchmark
 
 LOGGER_LVL = logging.DEBUG
 
@@ -312,7 +315,13 @@ class ModelEvaluationPipeline(FlowSpec):
         # TODO: Replace hardcoded EDF() instantiation with a dynamic simulator loader.
         #       Later, we will generalize this by reading the simulator name and source file path 
         #       from the pipeline config file and instantiating it via a Simulator abstract class.
-        simulator = EDF()             
+        # simulator = EDF() 
+        # simulator = Optimizer()            
+        # simulator = LYNCS()            
+        simulator = lLYNCS()            
+        # simulator = OA_benchmark()
+        # simulator = Uncontrolled()
+        # simulator = Oracle_benchmark()
 
         # Load model
         key = 'agg' 
