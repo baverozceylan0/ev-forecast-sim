@@ -11,7 +11,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class EDF(Simulator):
     def __init__(self) -> None:
         self.time_bins = pd.date_range("00:00", "23:45", freq="15min").time

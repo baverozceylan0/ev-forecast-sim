@@ -54,8 +54,8 @@ class ModelEvaluationPipeline(FlowSpec):
         Start the flow.
         Load the configuration files.
         """
-        logger: logging.Logger = setup_logger("start", log_file=self.log_file)
-        logger.setLevel(LOGGER_LVL)
+        setup_logger(log_file=self.log_file, level=LOGGER_LVL)
+        logger = logging.getLogger(__name__)
 
         self.config = OmegaConf.load(self.config_file)
         self.pipeline_config: PipelineConfig = instantiate(self.config.pipeline) 
@@ -92,8 +92,9 @@ class ModelEvaluationPipeline(FlowSpec):
         Load raw data using the appropriate DataLoader based on the dataset_id
         defined in the pipeline configuration.
         """
-        logger: logging.Logger = setup_logger("data_loading_step", log_file=self.log_file)
-        logger.setLevel(LOGGER_LVL)
+        setup_logger(log_file=self.log_file, level=LOGGER_LVL)
+        logger = logging.getLogger(__name__)
+
 
         try:
             loader = DataLoaderFactory.get_loader(
@@ -122,8 +123,8 @@ class ModelEvaluationPipeline(FlowSpec):
         Clean the raw dataset using the strategy list specified in the pipeline config.
         If the strategy list is empty, skip cleaning.
         """
-        logger: logging.Logger = setup_logger("data_cleaning_step", log_file=self.log_file)
-        logger.setLevel(LOGGER_LVL)
+        setup_logger(log_file=self.log_file, level=LOGGER_LVL)
+        logger = logging.getLogger(__name__)
 
         try:
             strategy_steps = self.pipeline_config.data_cleaning_strategy_steps
@@ -158,8 +159,8 @@ class ModelEvaluationPipeline(FlowSpec):
         """
         Split the selected features into training and test sets using date-based grouping.
         """
-        logger: logging.Logger = setup_logger("data_splitter_step", log_file=self.log_file)
-        logger.setLevel(LOGGER_LVL)
+        setup_logger(log_file=self.log_file, level=LOGGER_LVL)
+        logger = logging.getLogger(__name__)
 
         test_size = self.pipeline_config.test_size
         random_state = self.pipeline_config.random_state
@@ -180,8 +181,8 @@ class ModelEvaluationPipeline(FlowSpec):
         Apply feature engineering using the strategy list specified in the pipeline config.
         If the strategy list is empty, skip feature engineering.
         """      
-        logger: logging.Logger = setup_logger("feature_engineering_step", log_file=self.log_file)
-        logger.setLevel(LOGGER_LVL)
+        setup_logger(log_file=self.log_file, level=LOGGER_LVL)
+        logger = logging.getLogger(__name__)
 
         def apply_feature_engineering_steps(strategy_steps, df_input: pd.DataFrame) -> pd.DataFrame:
             if not strategy_steps:
@@ -260,8 +261,8 @@ class ModelEvaluationPipeline(FlowSpec):
         Load the model defined in the pipeline config.
         Logs parameters and metrics to MLflow and saves the trained model.
         """
-        logger: logging.Logger = setup_logger("model_building_step", log_file=self.log_file)
-        logger.setLevel(LOGGER_LVL)
+        setup_logger(log_file=self.log_file, level=LOGGER_LVL)
+        logger = logging.getLogger(__name__)
         
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         with mlflow.start_run():
@@ -279,7 +280,7 @@ class ModelEvaluationPipeline(FlowSpec):
                             model_builder: Model = builder_cls(self.model_config[key])
                             model_builder._build(self.df_train_feature_engineered[key])
                         
-                            logging.info(f"Model training completed for: {key}-{self.model_config[key].name}-{self.model_config[key].version}")        
+                            logger.info(f"Model training completed for: {key}-{self.model_config[key].name}-{self.model_config[key].version}")        
 
                             # Save model to "models/aggreagated/<model_name>/<version_name>"      
                             model_folder = os.path.join('models', key, f"{self.model_config[key].name}_{self.model_config[key].version}")
@@ -309,8 +310,8 @@ class ModelEvaluationPipeline(FlowSpec):
         """
         Load the trained model and run simulation for each day in the test data. Save KPIs.
         """
-        logger: logging.Logger = setup_logger("simulation_step", log_file=self.log_file)
-        logger.setLevel(LOGGER_LVL) 
+        setup_logger(log_file=self.log_file, level=LOGGER_LVL)
+        logger = logging.getLogger(__name__)
 
         # TODO: Replace hardcoded EDF() instantiation with a dynamic simulator loader.
         #       Later, we will generalize this by reading the simulator name and source file path 

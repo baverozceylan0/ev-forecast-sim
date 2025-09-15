@@ -7,7 +7,6 @@ from src.common.utils import validate_ev_charging_dataframe
 
 logger = logging.getLogger(__name__)
 
-
 class CleaningStrategy(ABC):
     """Abstract base class for cleaning strategies."""
 

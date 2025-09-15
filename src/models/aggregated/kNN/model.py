@@ -88,7 +88,7 @@ class kNNModelBuilding(Model):
         historical_data['time'] = historical_data['timestamp'].dt.strftime('%H:%M')
         self.historical_data = historical_data.sort_values(['date', 'timestamp']) 
 
-        logging.debug(f"Historical data: shape{self.historical_data.shape} -- columns{self.historical_data.columns.to_list()}") 
+        logger.debug(f"Historical data: shape{self.historical_data.shape} -- columns{self.historical_data.columns.to_list()}") 
        
         
     def forecast(self, prior_data: pd.DataFrame) -> pd.DataFrame:
@@ -131,8 +131,6 @@ class kNNModelBuilding(Model):
         # Merge with existing data
         completed = pd.DataFrame({'timestamp': full_range})
         completed = completed.merge(prior_data, on='timestamp', how='left')
-
-        logging.debug(f"prior_data_completed: {completed['cum_ev_count']}")
 
         completed['cum_ev_count'].iloc[prior_data.shape[0]:] = self.forecast_weighted_average(y_ev_prior, hist_matrix_cum_ev_count)
         completed['total_energy'].iloc[prior_data.shape[0]:] = self.forecast_weighted_average(y_energy_prior, hist_matrix_total_energy)
