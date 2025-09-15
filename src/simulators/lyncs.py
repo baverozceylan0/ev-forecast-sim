@@ -35,7 +35,7 @@ class LYNCS(Simulator):
         self.time_bins = pd.date_range("00:00", "23:45", freq="15min").time
         self.time_to_idx = {t: i for i, t in enumerate(self.time_bins)}
 
-        self.identifier = 'llyncs'
+        self.identifier = 'lyncs'
 
     def initilize(self) -> None:
         logger.info('---------------------------------------')
@@ -110,7 +110,7 @@ class LYNCS(Simulator):
                 logger.info['[ERROR]: Lyncs_mode undefined. Try linear or quadratic.']
             schedule = Schedule(self.focs)
             logger.debug('custom = \n{}'.format(['linear' if input['EV_id_x'].iloc[x] != 'EV0000' else 'reverse' for x in range(0,len(input))]))
-            schedule.solve_schedule(how = lyncs_mode, custom = ['linear' if input['EV_id_x'].iloc[x] != 'EV0000' else 'reverse' for x in range(0,len(input))])
+            schedule.solve_schedule(how = lyncs_mode, custom = None)
             self.f = schedule.f_sched
             logger.debug('so it also breaks here, ah')
 
