@@ -7,6 +7,7 @@ from typing import Tuple, Optional
 import mlflow
 from mlflow.models import infer_signature
 from src.models.base_model import Model, ModelConfig
+from src.common.utils import split_by_date_grouped
 
 import pandas as pd
 import numpy as np
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 class kNNModelConfig(ModelConfig):
     weight_sigma: float = 5
     use_month: bool = False
+
 
 
 class kNNModelBuilding(Model):
@@ -67,16 +69,22 @@ class kNNModelBuilding(Model):
             raise 
     
 
-    def _build(self, data_train: pd.DataFrame) -> None:
+    def _build(self, data_train: pd.DataFrame) -> Tuple[float, float]:
         """
         Stores the training set.
         """
         required_features = ['timestamp','cum_ev_count', 'total_energy']
         missing = [f for f in required_features if f not in data_train.columns]
         if missing:
-            raise ValueError(f"Missing required feature(s): {missing}")         
+            raise ValueError(f"Missing required feature(s): {missing}")        
 
-        historical_data = data_train[required_features].copy()
+        logger.info(f"Splitting the train data by date with validation_size={self.model_config.validation_size}, random_state={self.model_config.random_state}")
+        df_train, df_validation = split_by_date_grouped(data_train, date_col='date', test_size=self.model_config.validation_size, random_state=self.model_config.random_state)
+
+        logger.info(f"Train data shape: {df_train.shape} | Validation data shape: {df_validation.shape}")
+ 
+
+        historical_data = df_train[required_features].copy()
 
         # Ensure 'timestamp' is datetime
         historical_data['timestamp'] = pd.to_datetime(historical_data['timestamp'])
@@ -89,6 +97,16 @@ class kNNModelBuilding(Model):
         self.historical_data = historical_data.sort_values(['date', 'timestamp']) 
 
         logger.debug(f"Historical data: shape{self.historical_data.shape} -- columns{self.historical_data.columns.to_list()}") 
+
+        # Define forecast issuance times
+        forecast_times = [dt.time() for dt in pd.date_range(start="00:00", end="23:45", freq="15min").tolist()]
+
+        real_ev, real_energy, forecast_ev, forecast_energy = self.test(df_validation, forecast_times)
+
+        rmse_ev = np.sqrt(np.mean((real_ev[:, None, :] - forecast_ev) ** 2))
+        rmse_energy = np.sqrt(np.mean((real_energy[:, None, :] - forecast_energy) ** 2))
+
+        return rmse_ev, rmse_energy
        
         
     def forecast(self, prior_data: pd.DataFrame) -> pd.DataFrame:

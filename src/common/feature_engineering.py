@@ -188,7 +188,7 @@ class FeatureEngineer:
             raise ValueError(f"Unknown strategy '{strategy}'. Available: {list(self.FEATURE_ENGINEERING_STRATEGY_REGISTRY.keys())}")
         self.strategy = self._available_strategies[strategy]
         if not self.logging_off:    
-            logger.info(f"Set feature engineering strategy: {strategy}")
+            logger.debug(f"Set feature engineering strategy: {strategy}")
 
     def apply_transformation(self, df: pd.DataFrame, **kwargs):
         if not self.strategy:

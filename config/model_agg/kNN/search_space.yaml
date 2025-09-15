@@ -1,0 +1,14 @@
+optuna:
+  n_trials: 50
+  timeout: 1000
+  direction: minimize
+  seed: 42
+
+search_space:
+  weight_sigma:
+    type: float
+    low: 1
+    high: 50
+  use_month:
+    type: categorical
+    choices: [True, False]

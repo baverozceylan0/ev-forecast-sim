@@ -1,9 +1,12 @@
 .metaflow
+mlartifacts
+multirun
 data
 mlruns
 outputs
 models/*
 workspace.ipynb
+
 
 # ------------- Template ---------------
 # Byte-compiled / optimized / DLL files

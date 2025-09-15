@@ -1,0 +1,7 @@
+_target_: src.models.aggregated.kNN.model.kNNModelConfig
+name: kNN
+version: champion
+weight_sigma: 18
+use_month: False
+validation_size: 0.12
+random_state: 1337

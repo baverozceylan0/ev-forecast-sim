@@ -14,6 +14,10 @@ class CleaningStrategy(ABC):
         """Cleans the dataset and validates structure and types."""
 
         df_output = self._clean(df_input)
+        if df_output is None or df_output.empty:
+            err = f"Data cleaning produced empty output for: {self.__class__.__name__}"
+            logger.error(err)  
+            raise ValueError(err)
         return validate_ev_charging_dataframe(df_output)
 
     @abstractmethod
@@ -63,7 +67,7 @@ class CompositeCleaningStrategy(CleaningStrategy):
     def _clean(self, df_input: pd.DataFrame) -> pd.DataFrame:
         df = df_input
         for strategy in self.strategies:
-            df = strategy._clean(df)
+            df = strategy._clean(df)        
         return df
     
 # ----- Context -----
@@ -83,7 +87,9 @@ class DataCleaner:
 
         for name in strategy_names:
             if name not in self.CLEANING_STRATEGY_REGISTRY:
-                raise ValueError(f"Unknown cleaning strategy: {name}")
+                err = f"Unknown cleaning strategy: {name}"
+                logger.error(err)  
+                raise ValueError(err)
             strategies.append(self.CLEANING_STRATEGY_REGISTRY[name]())
 
         self.strategy = CompositeCleaningStrategy(strategies)     

@@ -9,6 +9,8 @@ import numpy as np
 class ModelConfig:
     name: str
     version: str
+    validation_size: float
+    random_state: int
 
 class Model(ABC):
     """

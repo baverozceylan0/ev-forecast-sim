@@ -129,10 +129,10 @@ class BayesianModelBuilding(Model):
                 # Add forecast_issuance_time as a column
                 prior['forecast_issuance_time'] = forecast_issuance_time
 
-                prior = self.forecast(prior)
+                prior = self.forecast(prior, forecast_issuance_time)
                 
                 results.append(
-                    prior[['start_time', 'forecast_issuance_time', 'est_end_time', 'end_time', 'est_total_energy', 'total_energy']].copy()
+                    prior[['date', 'EV_id_x', 'start_time', 'forecast_issuance_time', 'est_end_time', 'end_time', 'est_total_energy', 'total_energy']].copy()
                 )
 
         results_df = pd.concat(results, ignore_index=True)

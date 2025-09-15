@@ -27,6 +27,8 @@ class DataLoader(ABC):
     def load(self) -> pd.DataFrame:
         """Loads the dataset and validates structure and types."""
         df = self._load()
+        if df is None or df.empty:
+                raise ValueError(f"Loaded data is empty for dataset: {self.dataset_id}")
         return validate_ev_charging_dataframe(df)
 
     @abstractmethod

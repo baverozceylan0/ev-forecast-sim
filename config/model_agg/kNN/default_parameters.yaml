@@ -3,3 +3,5 @@ name: kNN
 version: default
 weight_sigma: 10
 use_month: False
+validation_size: 0.12
+random_state: 1337

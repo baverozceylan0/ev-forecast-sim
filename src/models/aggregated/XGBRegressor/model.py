@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import Tuple, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass,asdict
 import pandas as pd
 import numpy as np
 
@@ -13,10 +13,13 @@ from sklearn.metrics import mean_squared_error
 from src.common.utils import add_lag_features
 from src.models.base_model import Model
 
-logger = logging.getLogger(__name__)
+from src.models.base_model import Model, ModelConfig
+
+logger = logging.getLogger(__name__)   
+
 
 @dataclass
-class XGBRegressorModelConfig:
+class XGBRegressorModelConfig(ModelConfig):
     n_lags: int
     n_estimators: int
     max_depth: int = 5
@@ -26,9 +29,20 @@ class XGBRegressorModelConfig:
 class XGBRegressorModelBuilding(Model):
     def __init__(self, model_config: XGBRegressorModelConfig):
         self.model_config = model_config    
+        params = dict(
+            objective="reg:squarederror",
+            # booster="dart",
+            # rate_drop=0.15,
+            # skip_drop=0.0,
+            # sample_type="uniform",
+            # normalize_type="tree",
+            n_estimators=self.model_config.n_estimators,
+            learning_rate=self.model_config.learning_rate,
+            max_depth=self.model_config.max_depth,
+        )        
 
-        self.model_ev = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=self.model_config.n_estimators, learning_rate = self.model_config.learning_rate, max_depth = self.model_config.max_depth)
-        self.model_energy = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=self.model_config.n_estimators, learning_rate = self.model_config.learning_rate, max_depth = self.model_config.max_depth)
+        self.model_ev = xgb.XGBRegressor(**params)
+        self.model_energy = xgb.XGBRegressor(**params)
 
     def save_model(self, folder_path: str, prefix: Optional[str] = None):
         """
@@ -91,7 +105,7 @@ class XGBRegressorModelBuilding(Model):
 
         return x, y, t  
     
-    def _build(self, data_train: pd.DataFrame) -> None:
+    def _build(self, data_train: pd.DataFrame) -> Tuple[float, float]:
         """
         Train two XGBoost models for cum_ev_count and total_energy. Log metrics and models to MLflow.
         """         
@@ -101,7 +115,7 @@ class XGBRegressorModelBuilding(Model):
 
         # Split into training and validation 
         x_tr, x_val, y_tr, y_val = train_test_split(
-            x_train, y_train, test_size=0.15, shuffle=True)
+            x_train, y_train, test_size=self.model_config.validation_size, random_state= self.model_config.random_state)
         logger.debug("Train shape: x=%s, y=%s", x_tr.shape, y_tr.shape)
         logger.debug("Validation shape: x=%s, y=%s", x_val.shape, y_val.shape)
 
@@ -109,9 +123,28 @@ class XGBRegressorModelBuilding(Model):
         y_tr_ev, y_val_ev = y_tr['cum_ev_count'], y_val['cum_ev_count']
         y_tr_energy, y_val_energy = y_tr['total_energy'], y_val['total_energy']
 
+        self.model_ev.fit(
+            x_tr, y_tr_ev,
+            eval_set=[(x_tr, y_tr_ev), (x_val, y_val_ev)],
+            verbose=False
+        )
+        results_ev = self.model_ev.evals_result() 
+        for step, (tr, va) in enumerate(zip(results_ev["validation_0"]["rmse"],
+                                            results_ev["validation_1"]["rmse"])):
+            mlflow.log_metric("ev-train-rmse", tr, step=step)
+            mlflow.log_metric("ev-valid-rmse", va, step=step)
         
-        self.model_ev.fit(x_tr, y_tr_ev)
-        self.model_energy.fit(x_tr, y_tr_energy)
+        
+        self.model_energy.fit(
+            x_tr, y_tr_energy,
+            eval_set=[(x_tr, y_tr_energy), (x_val, y_val_energy)],
+            verbose=False
+        )
+        results_energy = self.model_energy.evals_result() 
+        for step, (tr, va) in enumerate(zip(results_energy["validation_0"]["rmse"],
+                                            results_energy["validation_1"]["rmse"])):
+            mlflow.log_metric("energy-train-rmse", tr, step=step)
+            mlflow.log_metric("energy-valid-rmse", va, step=step)
 
         # Evaluate
         y_pred_ev = self.model_ev.predict(x_val)
@@ -143,6 +176,8 @@ class XGBRegressorModelBuilding(Model):
             input_example=x_sample[:5], 
             model_format="json",
         )
+
+        return rmse_ev, rmse_energy
 
     
     def forecast(self, prior_data: pd.DataFrame) -> pd.DataFrame:
@@ -186,8 +221,6 @@ class XGBRegressorModelBuilding(Model):
 
         unique_dates = sorted(t_test["date"].unique())
         date_to_idx = {d: i for i, d in enumerate(unique_dates)}
-
-        forecast_issuance_times = pd.date_range(start="06:00", end="20:00", freq="30min").time
 
         # Count number of entries per day
         counts_per_day = t_test.groupby("date").size()
