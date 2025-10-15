@@ -36,6 +36,7 @@ from src.simulators.edf import EDF
 from src.simulators.focs import Optimizer
 from src.simulators.uncontrolled import Uncontrolled
 from src.simulators.pp import OA_benchmark
+from src.simulators.avr import AVR_benchmark
 from src.simulators.lyncs import LYNCS
 from src.simulators.llyncs import lLYNCS
 from src.simulators.almightyoracle import Oracle_benchmark
@@ -319,8 +320,9 @@ class ModelEvaluationPipeline(FlowSpec):
         # simulator = EDF() 
         # simulator = Optimizer()            
         # simulator = LYNCS()            
-        simulator = lLYNCS()            
+        # simulator = lLYNCS()            
         # simulator = OA_benchmark()
+        simulator = AVR_benchmark()
         # simulator = Uncontrolled()
         # simulator = Oracle_benchmark()
 
