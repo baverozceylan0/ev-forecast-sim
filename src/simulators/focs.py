@@ -96,6 +96,7 @@ class Optimizer(Simulator):
         return input, upcoming
 
     def focs_scheduler(self,input, upcoming, curr_time):
+        logger.debug('started focs_Scheduler')
         '''-------------define and solve FOCS instance ----------------'''
         self.instance = FOCSinstance(input, self.timeStep)
         flowNet = FlowNet()
@@ -139,7 +140,7 @@ class Optimizer(Simulator):
 
         # old arrivals
         self.ids_old = input[input['start_time_original']< curr_time]['session_id'].to_list()
-        logger.debug('ids old at curr_time {} = {}'.format(curr_time, self.ids_old))
+        # logger.debug('ids old at curr_time {} = {}'.format(curr_time, self.ids_old))
         # update schedule according to charging schedule
         for id in self.ids_old: 
             if input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]) in self.focs.instance.J['i0']: 
@@ -147,11 +148,12 @@ class Optimizer(Simulator):
                 self.sim_profiles[str(id)][-len(len_i):] = [power for x in range(0,len(len_i))]
 
     def sim_step(self, upcoming, curr_time, breaks, ids_old):
+        logger.debug('start sim_step()')
+
         # new arrivals
         breaks = list(set(breaks))
         breaks.sort()
         new_ids = [id for id in self.new_ids if upcoming['start_time'][upcoming['session_id'] == id].iloc[0] >= curr_time] # this line makes sure we can run the code outside of the pipeline. 
-        logger.debug("new_ids at curr_time {}= {}".format(curr_time, new_ids))
         for id in new_ids:
             # identify index
             if dt.datetime.combine(dt.datetime(1,1,1), upcoming['start_time'][upcoming['session_id'] == id].iloc[0]) not in breaks:
@@ -164,11 +166,11 @@ class Optimizer(Simulator):
         
         # departures
         ids_depart = [id for id in ids_old+new_ids if dt.datetime.combine(dt.datetime(1,1,1),upcoming[upcoming['session_id']==id]['end_time'].iloc[0]) < dt.datetime.combine(dt.datetime(1,1,1,0,0,0),curr_time)+dt.timedelta(minutes=15)]
-        logger.debug("ids departure at curr_time {} = {}".format(curr_time, ids_depart))
+        # logger.debug("ids departure at curr_time {} = {}".format(curr_time, ids_depart))
         if len(ids_depart) ==0:
             logger.info('No departures detected at curr_time {}'.format(curr_time))
         else:
-            # logger.debug('{} departures detected at curr_time {}'.format(len(ids_depart),curr_time))
+            logger.debug('{} departures detected at curr_time {}'.format(len(ids_depart),curr_time))
             for id in ids_depart:
                 if len(breaks) > len(set(breaks)):
                     logger.info("[WARNING]: breaks are not unique.")
@@ -201,7 +203,6 @@ class Optimizer(Simulator):
                 # seconds to deliver demand
                 delta_secs = math.ceil(self.timeBase*demand/self.sim_profiles[id][-i])
                 bp_per_id += [breaks[-i-1]+dt.timedelta(seconds=delta_secs)]
-                logger.debug('id, i, demand, deltasecs - {}, {}, {}, {}'.format(id, i, demand, delta_secs))
 
             list(set(self.breaks))
             self.breaks.sort()
@@ -222,10 +223,13 @@ class Optimizer(Simulator):
             # update self.len_i
             self.len_i = [(self.breaks[i] - self.breaks[i-1]).total_seconds() for i in range(1,len(self.breaks))]            
 
+            # logger.debug(id_complete)
             for idx, id in enumerate(id_complete): #FIXME
                 # set power to 0 after charging is complete.
                 m_absent = len(self.breaks) - self.breaks.index(bp_per_id[idx]) # removed -1. Failed with instance where 1st interval is relevant (delta = 12 seconds).
                 self.sim_profiles[id][-m_absent:] = [0 for x in range(0,m_absent)] 
+
+        logger.debug('end of sim step')
         
     def step(self, curr_time: time, df_agg_timeseries: pd.DataFrame, df_usr_sessions: pd.DataFrame, active_session_info: pd.DataFrame) -> None:
         self.sessions = df_usr_sessions
@@ -479,10 +483,13 @@ class Optimizer(Simulator):
         else:
             milestones = milestones_predef
         jobs_qoe_real = [self.qoe_j(data,data['session_id'].iloc[j], milestones[j]) for j in range(0, len(data))]
+        logger.debug('\n jobs qoe real {}'.format(jobs_qoe_real))
+        logger.debug('check that later!! Does it hold true with the outputted simprofiles?')
         return jobs_qoe_real
 
     def publish_results(self, output_dir: str, prefix: Optional[str] = None) -> None:
         os.makedirs(output_dir, exist_ok=True)
+        logger.debug('start publishing')
         prefix = '{}_focs'.format(self.sessions['start_datetime'].iloc[0].date())
         f_name = "sim_profiles.csv" if prefix == None else f"{prefix}_sim_profiles.parquet"
         file_path = os.path.join(output_dir, f_name)
@@ -519,3 +526,5 @@ class Optimizer(Simulator):
         file_path = os.path.join(output_dir, f_name)
         pd.DataFrame(data=mets_global).to_parquet(file_path)
         pd.DataFrame(data=mets_global).to_csv(os.path.join(output_dir, "{}_globalmetrics.csv".format(prefix)))
+        logger.debug('what does the fox say? l;ajsdf;llkdkjfjkdkdsfkkdkdkdkdkdkdkdkdkdkdkdkdk')
+        logger.info('Evaluation of current day {} complete'.format(self.sessions['start_datetime'].iloc[0].date()))
