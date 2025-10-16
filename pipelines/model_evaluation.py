@@ -38,6 +38,7 @@ from src.simulators.uncontrolled import Uncontrolled
 from src.simulators.pp import OA_benchmark
 from src.simulators.avr import AVR_benchmark
 from src.simulators.lyncs import LYNCS
+from src.simulators.rlyncs import rLYNCS
 from src.simulators.llyncs import lLYNCS
 from src.simulators.almightyoracle import Oracle_benchmark
 
@@ -320,7 +321,8 @@ class ModelEvaluationPipeline(FlowSpec):
         # simulator = EDF() 
         # simulator = Optimizer()            
         # simulator = LYNCS()            
-        # simulator = lLYNCS()            
+        # simulator = rLYNCS()            
+        simulator = lLYNCS()            
         # simulator = OA_benchmark()
         simulator = AVR_benchmark()
         # simulator = Uncontrolled()
@@ -351,7 +353,8 @@ class ModelEvaluationPipeline(FlowSpec):
         self.df_test_feature_engineered['usr'] = add_session_id(self.df_test_feature_engineered['usr'])
         
         # Loop over days
-        for date in unique_dates:
+        date_range = unique_dates[-10:]
+        for date in date_range:
             try:
                 date_idx = date_to_idx[date]
                 logger.info(f"Simulating Date: {date} ({date_idx+1}/{len(unique_dates)})")
