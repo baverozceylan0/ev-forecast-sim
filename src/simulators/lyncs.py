@@ -383,6 +383,12 @@ class LYNCS(Simulator):
         self.ens_rel_exact_avg = sum(self.jobs_ens_rel_exact)/len(self.jobs_ens_rel_exact)
         self.ens_rel_avg = sum(self.jobs_ens_rel)/len(self.jobs_ens_rel)
 
+        # power peak
+        self.peak = self.peak_power()
+
+        # flatness objective value (2-norm)
+        self.flat_value = self.flatness()
+
         return
     
     def Jain(self, x):
@@ -496,6 +502,19 @@ class LYNCS(Simulator):
         logger.debug('\n jobs qoe real {}'.format(jobs_qoe_real))
         logger.debug('check that later!! Does it hold true with the outputted simprofiles?')
         return jobs_qoe_real
+    
+    def flatness(self):
+        #flatness objective for validation
+        #note needs to be normalized if timestep and timebase granularity don't match.    
+        #determine power per interval
+        p_i = [sum([self.sim_profiles[y][x] for y in self.sim_profiles.keys() if y != 'EV0000']) for x in range(0,len(set(self.breaks))-1)]
+        #determine weighted squared powers
+        powerSquare = [(p_i[i]**2)*(self.len_i[i]) for i in range(0,len(p_i))]
+        self.flat_value = sum(powerSquare)
+        return self.flat_value
+    
+    def peak_power(self):
+        return max([sum([self.sim_profiles[y][x] for y in self.sim_profiles.keys() if y != 'EV0000']) for x in range(0,len(set(self.breaks))-1)])
 
     def publish_results(self, output_dir: str, prefix: Optional[str] = None) -> None:
         os.makedirs(output_dir, exist_ok=True)
@@ -524,7 +543,7 @@ class LYNCS(Simulator):
         if len(self.sessions) != len(self.jobs_ens_abs):
             logger.error('Day likely contains >= 2 sessions by a single EV. Cannot save qosqoe metrics.')
         mets_jobs = {'ids': self.sessions['session_id'].to_list(), 'day':[self.sessions['start_datetime'].iloc[0].date() for i in range(0,len(self.sessions))], 'ens_abs_exact': self.jobs_ens_abs_exact, 'ens_rel_exact': self.jobs_ens_rel_exact,'ens_abs': self.jobs_ens_abs, 'ens_rel': self.jobs_ens_rel, 'qos1': self.jobs_es_rel, 'qos2': self.jobs_qos2_waiting_real, 'qos3': self.jobs_qos3_powervar_real, 'qoe': self.jobs_qoe_real}
-        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date()], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos3_min': [self.qos_3_real_min], 'qoe_total_exact': [self.qoe_total_exact], 'qoe_total_rel': [self.qoe_total_rel], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg] }
+        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date()], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos3_min': [self.qos_3_real_min], 'qoe_total_exact': [self.qoe_total_exact], 'qoe_total_rel': [self.qoe_total_rel], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg], 'flat':[self.flat_value], 'peak': [self.peak] }
         
         f_name = "qosqoe.csv" if prefix == None else f"{prefix}_qosqoe.parquet"
         file_path = os.path.join(output_dir, f_name)
