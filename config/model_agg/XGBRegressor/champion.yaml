@@ -1,0 +1,9 @@
+_target_: src.models.aggregated.XGBRegressor.model.XGBRegressorModelConfig
+name: XGBRegressor
+version: champion
+n_lags: 12
+n_estimators: 100
+max_depth: 5
+learning_rate: 0.05
+validation_size: 0.12
+random_state: 1337

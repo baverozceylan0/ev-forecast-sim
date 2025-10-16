@@ -41,12 +41,13 @@ def setup_logger(log_file: str = "run.log", level="INFO") -> None:
             },
         },
         "root": {  # root logger
-            "level": level,
+            "level": "DEBUG",
             "handlers": ["console", "file"]
         },
     }
 
     logging.config.dictConfig(config)
+
 
 def load_and_instantiate_config(file_path: str, config_class: Type, config_name: Optional[str] = "Config") -> Any:
     """

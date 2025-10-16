@@ -42,7 +42,7 @@ from src.simulators.rlyncs import rLYNCS
 from src.simulators.llyncs import lLYNCS
 from src.simulators.almightyoracle import Oracle_benchmark
 
-LOGGER_LVL = logging.DEBUG
+LOGGER_LVL = logging.INFO
 
 class ModelEvaluationPipeline(FlowSpec):
 
@@ -96,26 +96,13 @@ class ModelEvaluationPipeline(FlowSpec):
         """
         setup_logger(log_file=self.log_file, level=LOGGER_LVL)
         logger = logging.getLogger(__name__)
-
-
         try:
-            loader = DataLoaderFactory.get_loader(
-                self.pipeline_config.dataset_id,
-                force_download=False
-            )
-            df_raw: pd.DataFrame = loader.load()
-
-            if df_raw is None or df_raw.empty:
-                raise ValueError(f"Loaded data is empty for dataset: {self.pipeline_config.dataset_id}")
-
-            self.df_raw = df_raw
-            logger.info(f"Loaded raw data with shape: {df_raw.shape}")  
-            
+            self.df_raw: pd.DataFrame = DataLoaderFactory.get_loader(self.pipeline_config.dataset_id).load() 
+            logger.info(f"Loaded raw data with shape: {self.df_raw.shape}")  
         except Exception as e:
             err = f"Failed to load data for dataset '{self.pipeline_config.dataset_id}': {e}"
             logger.error(err)
             raise
-
         self.next(self.data_cleaning_step)
 
 
@@ -130,24 +117,14 @@ class ModelEvaluationPipeline(FlowSpec):
 
         try:
             strategy_steps = self.pipeline_config.data_cleaning_strategy_steps
-
             if not strategy_steps:
                 logger.debug("No data cleaning strategies provided. Skipping cleaning step.")
                 self.df_cleaned = self.df_raw.copy()
             else:
-
                 cleaner = DataCleaner()
                 cleaner.set_strategy(strategy_steps)
-
                 self.df_cleaned: pd.DataFrame = cleaner.clean(self.df_raw)
-
-                if self.df_cleaned is None or self.df_cleaned.empty:
-                    err = f"Data cleaning produced empty output for steps: {strategy_steps}"
-                    logger.error(err)  
-                    raise ValueError(err)
-
-            logger.info(f"Cleaned data shape: {self.df_cleaned.shape}")            
-
+            logger.info(f"Cleaned data shape: {self.df_cleaned.shape}")  
         except Exception as e:
             err = f"Failed to clean data:'{self.pipeline_config.data_cleaning_strategy_steps}': {e}"
             logger.error(err)
@@ -268,7 +245,9 @@ class ModelEvaluationPipeline(FlowSpec):
         
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         with mlflow.start_run():
-            log_parameters_mlflow(params=asdict(self.pipeline_config))
+
+            
+
             for key in ['agg', 'usr']:
                 if not self.model_skip_flags[key]:     
                     with mlflow.start_run(nested=True):

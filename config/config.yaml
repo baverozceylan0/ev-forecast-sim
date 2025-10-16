@@ -1,4 +1,5 @@
 defaults:
-  - pipeline: model_evaluation/default
-  - model_agg: kNN/default
+  - pipeline: default
+  - model_agg: kNN/default_parameters
   - model_usr: bayesian/default
+

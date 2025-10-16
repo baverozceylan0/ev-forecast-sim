@@ -3,4 +3,6 @@ name: bayesian
 version: default
 lambda_weight: 0.2
 min_sessions: 10
-percentile: 50 # percentile: float in [0, 100]
+percentile: 75 # percentile: float in [0, 100]
+validation_size: 0.12
+random_state: 1337

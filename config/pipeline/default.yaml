@@ -14,11 +14,10 @@ feature_engineering_strategy_steps:
 feature_engineering_selected_features:
   agg:
     - EV_id_x
-    - start_time
-    - end_time
     - cum_ev_count
     - total_energy
     - day_of_week
+    - time_interval_index
   usr:
     - EV_id_x
     - start_time
