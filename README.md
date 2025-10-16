@@ -10,6 +10,9 @@
 git clone https://github.com/baverozceylan0/ev-forecast-sim.git
 cd ev-forecast-sim
 
+# Build container manually (if automatic installation fails)
+# docker-compose up --build
+
 # Start containers
 docker-compose up -d
 
