@@ -32,10 +32,10 @@ logging.basicConfig( # write logger.info for messages and warnings, if for debug
 )
 
 
-
+# based on predictions
 class AVR_benchmark(Simulator):
     def __init__(self) -> None: 
-        self.timeStep = 1
+        self.timeStep = 900
         self.timeBase = 3600
         self.power_default_kW = 13
 
@@ -66,7 +66,10 @@ class AVR_benchmark(Simulator):
         input['start_original'] = [dt.datetime.combine(dt.datetime(1,1,1),input['start_time_original'].iloc[x]) for x in range(0,len(input))]
         # update end times.
         input['end_time'] = [x.time() for x in input['end_datetime']]
+        logger.debug('start origi = {}'.format(str(input['start_datetime'])))
+        logger.debug('end time ori = {}'.format(str(input['end_datetime'])))
         input['end'] = [dt.datetime.combine(dt.datetime(1,1,1),input['end_time'].iloc[x]) for x in range(0,len(input))]
+        # drop rows where end<curr_time
 
         # add new ids to dataframe
         self.new_ids = [key for key in upcoming['session_id'].unique() if key not in self.supplied_energy.keys()] # no dataleakage. Just bookkeeping.
@@ -82,13 +85,22 @@ class AVR_benchmark(Simulator):
 
         # update energy based on previously scheduled
         input['total_energy_Wh'] = [max(0,input['total_energy'].iloc[x]-self.supplied_energy[str(input['session_id'].iloc[x])])*1000 if input['session_id'].iloc[x] in self.supplied_energy.keys() else input['total_energy'].iloc[x]*1000 for x in range(0,len(input))] 
+        logger.debug('total energy wh = {}'.format(str(input['total_energy_Wh'])))
+        logger.debug('min total energy wh = {}'.format(min(input['total_energy_Wh'])))
         # check whether feasible solution still exists. Else, reduce 
+        logger.debug('power = {}'.format(str(input['power'])))
+        logger.debug('start = {}'.format(str(input['start'])))
+        logger.debug('end = {}'.format(str(input['end'])))
         input['energy_uncontrolled_Wh'] = input['power']*((input['end'] - input['start'])/ np.timedelta64(1, 'h'))
+        logger.debug('energy_uncontro Wh = {}'.format(str(input['energy_uncontrolled_Wh'])))
         input['energy_deficit'] = [max(0, input['total_energy_Wh'].iloc[j] - input['energy_uncontrolled_Wh'].iloc[j]) for j in range(0, len(input))]
+        logger.debug('energy deficit = {}'.format(str(input['energy_deficit'])))
+        logger.debug(max(input['energy_deficit']))
         if len(input)>0:
             if max(input['energy_deficit']) > 0:
                 logger.debug('[WARNING]: EVs {} cannot be feasibly scheduled anymore based on their max power. We reduce their energy demand for the scheduler.'.format(input[input['energy_deficit']>0]['session_id'].to_list()))
                 input['total_energy_Wh'] = input['total_energy_Wh'] - input['energy_deficit']
+        logger.debug('min energy again = {}'.format(min(input['total_energy_Wh'])))
 
         # discretize 
         input['t0_' + str(900)] = input['start'].apply(lambda x: math.floor((x.hour*3600 + x.minute*60 + x.second)/900))
@@ -108,80 +120,289 @@ class AVR_benchmark(Simulator):
         s.columns = ['time','breakpoints','breaks','len_i','agg'] + ['j'+str(j) for j in self.avr.instance.jobs]
         return s
 
+    def avr_scheduler(self,input, upcoming, curr_time):
+        logger.debug('started focs_Scheduler')
+        '''-------------define and solve FOCS instance ----------------'''
+        self.instance = FOCSinstance(input, self.timeStep)
+        logger.debug('created instance')
+        flowNet = FlowNet()
+        logger.debug('init flownet')
+        flowNet.focs_instance_to_network(self.instance)
+        logger.debug('made network')
+        flowOp = FlowOperations(flowNet.G, self.instance)
+        logger.debug('before avr')
+        self.avr = AVR(self.instance, flowNet, flowOp)
+        logger.debug('before solving avr')
+        self.f = self.avr.solve_avr()
+        # logger.debug('schedule at tick {} = \n{}'.format(curr_time, self.f))
+        logger.debug('scheduling complete')
+
+        '''-------------save schedule-----------------------'''
+        # check if intervals are 900 seconds apart from previous time:
+        if self.breaks:
+            if self.breaks[-1] == dt.datetime.combine(dt.datetime(1,1,1),curr_time):
+                logger.debug("Normal execution mode: consecutive 15 min intervals detected")
+                self.offset = 0
+                pass
+            else:
+                logger.info("[WARNING]: Abnormal execution mode: non-consecutive 15 minute intervals detected.\nSchedule for intermediate time steps has not been recorded.")
+                self.offset = 1
+                self.len_i +=[(dt.datetime.combine(dt.datetime(1,1,1), curr_time)-self.breaks[-1]).total_seconds()]
+        # extract breakpoints within planningsinterval (15 min)
+        breaks = list(set(upcoming['start_time'].to_list() + upcoming['end_time'].to_list() + [curr_time, (dt.datetime.combine(dt.datetime(1,1,1,0,0,0),curr_time)+dt.timedelta(minutes=15)).time()]))
+        breaks = [dt.datetime.combine(dt.datetime(1,1,1,0,0,0),b) for b in breaks if b >= curr_time]
+        breaks = [b for b in breaks if b <= (dt.datetime.combine(dt.datetime(1,1,1,0,0,0),curr_time)+dt.timedelta(minutes=15))]
+        breaks.sort()
+        self.breaks += breaks
+        list(set(self.breaks)).sort()
+        self.breaks_step = breaks
+        logger.debug("breaks = {}".format(self.breaks))
+
+        # log the lenghts of the intervals
+        len_i = [(breaks[i] - breaks[i-1]).total_seconds() for i in range(1,len(breaks))]
+        self.len_i += len_i
+        logger.debug("leni = {}".format(len_i))
+        if sum(len_i) != self.timeStep:
+            logger.info("[WARNGING]: Interval broken into subintervals that sum to {} seconds (<{})!".format(sum(len_i), self.timeStep))
+        
+        # pad with zeros for all evs
+        for id in self.sim_profiles.keys():
+            self.sim_profiles[str(id)] += [0 for x in range(0,len(len_i)+self.offset)]
+        # logger.debug("after padding sched update\n{}".format(self.sim_profiles))
+
+        # old arrivals
+        self.ids_old = input[input['start_time_original']< curr_time]['session_id'].to_list()
+        # logger.debug('ids old at curr_time {} = {}'.format(curr_time, self.ids_old))
+        # update schedule according to charging schedule
+        for id in self.ids_old: 
+            if input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]) in self.avr.instance.J['i0']: 
+                power = self.f['j{}'.format(input['session_id'].index.get_loc(input['session_id'].index[input['session_id'] == id].values[0]))]['i0']*(self.timeStep/self.avr.instance.len_i[0])/self.avr.instance.tau
+                self.sim_profiles[str(id)][-len(len_i):] = [power for x in range(0,len(len_i))]
+
+    def sim_step(self, upcoming, curr_time, breaks, ids_old):
+        logger.debug('start sim_step()')
+
+        # new arrivals
+        breaks = list(set(breaks))
+        breaks.sort()
+        new_ids = [id for id in self.new_ids if upcoming['start_time'][upcoming['session_id'] == id].iloc[0] >= curr_time] # this line makes sure we can run the code outside of the pipeline. 
+        for id in new_ids:
+            # identify index
+            if dt.datetime.combine(dt.datetime(1,1,1), upcoming['start_time'][upcoming['session_id'] == id].iloc[0]) not in breaks:
+                logger.info("[ERROR]: new arrival not actually arriving. (Not in breaks list).")
+            else:
+                # count number of intervals where present
+                m_present = len(breaks)-breaks.index(dt.datetime.combine(dt.datetime(1,1,1), upcoming['start_time'][upcoming['session_id'] == id].iloc[0])) -1 # -1 because we care about intervals, not breakpoints
+                # assign default to end of array
+                self.sim_profiles[id][-m_present:] = [self.power_default_kW for x in range(0,m_present)]    
+        
+        # departures
+        ids_depart = [id for id in ids_old+new_ids if dt.datetime.combine(dt.datetime(1,1,1),upcoming[upcoming['session_id']==id]['end_time'].iloc[0]) < dt.datetime.combine(dt.datetime(1,1,1,0,0,0),curr_time)+dt.timedelta(minutes=15)]
+        # logger.debug("ids departure at curr_time {} = {}".format(curr_time, ids_depart))
+        if len(ids_depart) ==0:
+            logger.info('No departures detected at curr_time {}'.format(curr_time))
+        else:
+            logger.debug('{} departures detected at curr_time {}'.format(len(ids_depart),curr_time))
+            for id in ids_depart:
+                if len(breaks) > len(set(breaks)):
+                    logger.info("[WARNING]: breaks are not unique.")
+                m_absent = len(breaks) - breaks.index(dt.datetime.combine(dt.datetime(1,1,1), upcoming['end_time'][upcoming['session_id'] == id].iloc[0])) -1
+                # logger.debug("{},{}".format(id,m_absent))
+                self.sim_profiles[id][-m_absent:] = [0 for x in range(0,m_absent)] # offset different from new arrivals. Checked with data though. This is correct.               
+
+        # energy completed
+        # update supplied energy
+        taus = np.array([x*self.instance.tau/self.timeStep for x in self.len_i]) # conversion factors
+        for key in self.supplied_energy.keys(): 
+            # except 'EV0000' key
+            if key[1:7] != 'EV0000':
+                self.supplied_energy[key] = sum(np.array(self.sim_profiles[key])*taus)
+        upcoming['served'] = upcoming['session_id'].map(self.supplied_energy)
+        upcoming['demand'] = upcoming['total_energy'] - upcoming['served']
+        
+        # identify completed charging
+        id_complete = upcoming[upcoming['demand']<0]['session_id'].to_list()
+
+        if id_complete:
+            logger.debug('id_complete at curr_time {} = {}'.format(curr_time, id_complete))
+            # identify point of completed charging for each completed charging session
+            bp_per_id = []
+            for id in id_complete:
+                i = 1
+                while self.supplied_energy[id] - sum((np.array(self.sim_profiles[id])*taus)[-i:]) > upcoming[upcoming['session_id']==id]['total_energy'].iloc[0]:
+                    i+=1
+                demand = upcoming[upcoming['session_id']==id]['total_energy'].iloc[0] - self.supplied_energy[id] + sum((np.array(self.sim_profiles[id])*taus)[-i:])
+                # seconds to deliver demand
+                delta_secs = math.ceil(self.timeBase*demand/self.sim_profiles[id][-i])
+                bp_per_id += [breaks[-i-1]+dt.timedelta(seconds=delta_secs)]
+
+            list(set(self.breaks))
+            self.breaks.sort()
+            
+            for bp in list(set(bp_per_id)):
+                if bp not in self.breaks:
+                    # identify index to split up in two intervals
+                    i = sum(b < bp for b in set(self.breaks))-1
+                    # insert intermediate breakpoint in all power profiles
+                    for key in self.sim_profiles.keys():
+                        self.sim_profiles[key] = self.sim_profiles[key][:i] + [self.sim_profiles[key][i]] + self.sim_profiles[key][i:]
+                    self.breaks += [bp]
+                    self.breaks.sort()
+
+            # update self.breaks
+            self.breaks = list(set(self.breaks))
+            self.breaks.sort()
+            # update self.len_i
+            self.len_i = [(self.breaks[i] - self.breaks[i-1]).total_seconds() for i in range(1,len(self.breaks))]            
+
+            # logger.debug(id_complete)
+            for idx, id in enumerate(id_complete): #FIXME
+                # set power to 0 after charging is complete.
+                m_absent = len(self.breaks) - self.breaks.index(bp_per_id[idx]) # removed -1. Failed with instance where 1st interval is relevant (delta = 12 seconds).
+                self.sim_profiles[id][-m_absent:] = [0 for x in range(0,m_absent)] 
+
+        logger.debug('end of sim step')
+        
     def step(self, curr_time: time, df_agg_timeseries: pd.DataFrame, df_usr_sessions: pd.DataFrame, active_session_info: pd.DataFrame) -> None:
         self.sessions = df_usr_sessions
         energy_agg = df_agg_timeseries
         upcoming = active_session_info
-        # logger.debug(self.sessions.to_string())
-        logger.debug('start step at curr_time {}'.format(curr_time))
 
-        if curr_time != dt.time(hour=23, minute=45):
-            logger.debug('skipped curr_time {}'.format(curr_time))
-        else:
+        logger.info('Generate sessions from predicted energy and occupancy profile.')
+        # generate dummy sessions from forecast
+        input = generate_sessions_from_profile(self.sessions, energy_agg, curr_time)
 
-            # preprocess in second granularity
-            logger.info('start optimizer.step() at curr_time {}'.format(curr_time))
-            input = self.sessions.loc[self.sessions['end_datetime'].notnull()]
-            input = input.reset_index()
+        logger.info('start optimizer.step() at curr_time {}'.format(curr_time))
+        input = input.loc[input['end_datetime'].notnull()]
+        input = input.reset_index()
 
-            '''--------------update instance based on previous timesteps--------------'''
-            # converts start and end times (in new columns)
-            # updates self.new_ids
-            # applies padding to self.supplied_energy and self.sim_profiles (for new_ids)
-            # adds column with input energy demand - energy already served [in Wh]
-            # adds power columns
-            # adds columns with 15-minute indexed time stamps (0,1,2) instead of (00:00,00:15,00:30)
-            # adds columns with second indexed time stamps (0,1,2) instead of (00:00:00,00:00:01,00:00:02)
-            input, upcoming = self.preprocessing(input, upcoming)
-            self.input = input
+        '''--------------update instance based on previous timesteps--------------'''
+        # converts start and end times (in new columns)
+        # updates start times to curr_time
+        # filters past sessions from input and upcoming sessions
+        # updates self.new_ids
+        # applies padding to self.supplied_energy and self.sim_profiles (for new_ids)
+        # adds column with input energy demand - energy already served [in Wh]
+        # adds power columns
+        # adds columns with 15-minute indexed time stamps (0,1,2) instead of (00:00,00:15,00:30)
+        input, upcoming = self.preprocessing(input, upcoming, curr_time)
+        self.input = input
 
-            # make FOCS instance
-            logger.debug('started focs_Scheduler')
-            '''-------------define and solve AVR instance ----------------'''
-            self.instance = FOCSinstance(input, self.timeStep)
-            flowNet = FlowNet()
-            flowNet.focs_instance_to_network(self.instance)
-            flowOp = FlowOperations(flowNet.G, self.instance)
-            self.avr = AVR(self.instance, flowNet, flowOp)
-            self.f = self.avr.solve_avr()
+        # temporary filter: #FIXME how does that relate to new power 
+        n = len(input)
+        input = input[input['average_power_W']>0] # remove sessions with departure before arrival
+        if n- len(input)>0:
+            logger.info("[WARNING]: removed {} sessions from data based on non-negativity of power.".format(n-len(input)))
+        n = len(input)
+        input = input[input['average_power_W']<=22000] # remove sessions that require >22kW to complete
+        # input['maxPower'][input['average_power_W']>22000] = input['average_power_W'][input['average_power_W']>22000] #FIXME
+        if n- len(input)>0:
+            logger.info("[WARNING]: removed {} sessions from data based on average power needed to complete session.".format(n-len(input)))
+        n = len(input)
+        input = input.drop(input[input['end_time']<curr_time].index) # remove sessions with departure before current time
+        if n - len(input)>0:
+            logger.info("[WARNING]: removed {} sessions from data based on departure before current time.")
+        # n = len(input)
+        # input = input.drop(input[input['total_energy_Wh']<=0].index) # remove sessions with departure before current time
+        # if n - len(input)>0:
+        #     logger.info("[WARNING]: removed {} sessions from data based on negative charging demand.")
+        # # logger.debug(input.to_string())
 
-            logger.debug('schedule at tick {} = \n{}'.format(curr_time, self.f))
+        '''--------------start scheduler (FOCS) with local info--------------'''
+        # solves instance using FOCS
+        # updates self.sim_profiles with zeros or schedule according to predicted avail.
+        self.avr_scheduler(input, upcoming, curr_time)
 
-            '''-------------save schedule ----------------'''
-            # based on write_power() in Bookkeeping.py
+        '''--------------update schedule with upcoming events--------------'''
+        self.sim_step(upcoming, curr_time, self.breaks, self.ids_old)
+        
+        '''--------------bookkeeping--------------'''
+        # update supplied energy
+        taus = np.array([x*self.instance.tau/self.timeStep for x in self.len_i]) # conversion factors
+        for key in self.supplied_energy.keys(): 
+            # except 'EV0000' key
+            if key[1:7] != 'EV0000':
+                self.supplied_energy[key] = sum(np.array(self.sim_profiles[key])*taus)
 
-            # extract breakpoints within planningsinterval (full day)
-            breaks = list(set(input['start_time'].to_list() + input['end_time'].to_list()))
-            breaks = [dt.datetime.combine(dt.datetime(1,1,1,0,0,0),b) for b in breaks]
-            self.breaks += list(set(breaks))
-            self.breaks.sort()
-            logger.debug('breaks after = {}'.format(self.breaks))
-
-            # log the lenghts of the intervals
-            len_i = [(self.breaks[i] - self.breaks[i-1]).total_seconds() for i in range(1,len(self.breaks))]
-            self.len_i += len_i
-
-            # flow to dataframe (based on Schedule class in FOCS)
-            schedule = self.flow_to_dataframe(self.f)
-            # add a 0 at end
-            # FIXME this assumes indexing is neat. Use max index +1 instead?
-            schedule.loc[len(schedule)] = [len(schedule), schedule['breakpoints'].iloc[-1]+1, self.breaks[-1] , 1, 0] + [0 for j in self.avr.instance.jobs]
-            self.len_i += [1]
-
-            # save AVR to self.sim_profiles
-            for idx, id in enumerate(input['session_id'].unique()):
-                self.sim_profiles[id] = schedule['j'+str(idx)].to_list()
-
-            '''--------------bookkeeping--------------'''
-            # update supplied energy
-            taus = np.array([x*self.instance.tau/self.timeStep for x in self.len_i]) # conversion factors
-            for key in input['session_id'].unique(): 
-                # except 'EV0000' key
-                if key[1:7] != 'EV0000':
-                    self.supplied_energy[key] = sum(np.array(self.sim_profiles[key])*taus)
-
-            logger.debug('end of optimizer.step at tick {}'.format(curr_time))
+        logger.debug('end of optimizer.step at tick {}'.format(curr_time))
         return
+
+
+
+    # def step(self, curr_time: time, df_agg_timeseries: pd.DataFrame, df_usr_sessions: pd.DataFrame, active_session_info: pd.DataFrame) -> None:
+    #     self.sessions = df_usr_sessions
+    #     energy_agg = df_agg_timeseries
+    #     upcoming = active_session_info
+    #     # logger.debug(self.sessions.to_string())
+    #     logger.debug('start step at curr_time {}'.format(curr_time))
+
+    #     if curr_time != dt.time(hour=23, minute=45):
+    #         logger.debug('skipped curr_time {}'.format(curr_time))
+    #     else:
+
+    #         # preprocess in second granularity
+    #         logger.info('start optimizer.step() at curr_time {}'.format(curr_time))
+    #         input = self.sessions.loc[self.sessions['end_datetime'].notnull()]
+    #         input = input.reset_index()
+
+    #         '''--------------update instance based on previous timesteps--------------'''
+    #         # converts start and end times (in new columns)
+    #         # updates self.new_ids
+    #         # applies padding to self.supplied_energy and self.sim_profiles (for new_ids)
+    #         # adds column with input energy demand - energy already served [in Wh]
+    #         # adds power columns
+    #         # adds columns with 15-minute indexed time stamps (0,1,2) instead of (00:00,00:15,00:30)
+    #         # adds columns with second indexed time stamps (0,1,2) instead of (00:00:00,00:00:01,00:00:02)
+    #         input, upcoming = self.preprocessing(input, upcoming)
+    #         self.input = input
+
+    #         # make FOCS instance
+    #         logger.debug('started focs_Scheduler')
+    #         '''-------------define and solve AVR instance ----------------'''
+    #         self.instance = FOCSinstance(input, self.timeStep)
+    #         flowNet = FlowNet()
+    #         flowNet.focs_instance_to_network(self.instance)
+    #         flowOp = FlowOperations(flowNet.G, self.instance)
+    #         self.avr = AVR(self.instance, flowNet, flowOp)
+    #         self.f = self.avr.solve_avr()
+
+    #         logger.debug('schedule at tick {} = \n{}'.format(curr_time, self.f))
+
+    #         '''-------------save schedule ----------------'''
+    #         # based on write_power() in Bookkeeping.py
+
+    #         # extract breakpoints within planningsinterval (full day)
+    #         breaks = list(set(input['start_time'].to_list() + input['end_time'].to_list()))
+    #         breaks = [dt.datetime.combine(dt.datetime(1,1,1,0,0,0),b) for b in breaks]
+    #         self.breaks += list(set(breaks))
+    #         self.breaks.sort()
+    #         logger.debug('breaks after = {}'.format(self.breaks))
+
+    #         # log the lenghts of the intervals
+    #         len_i = [(self.breaks[i] - self.breaks[i-1]).total_seconds() for i in range(1,len(self.breaks))]
+    #         self.len_i += len_i
+
+    #         # flow to dataframe (based on Schedule class in FOCS)
+    #         schedule = self.flow_to_dataframe(self.f)
+    #         # add a 0 at end
+    #         # FIXME this assumes indexing is neat. Use max index +1 instead?
+    #         schedule.loc[len(schedule)] = [len(schedule), schedule['breakpoints'].iloc[-1]+1, self.breaks[-1] , 1, 0] + [0 for j in self.avr.instance.jobs]
+    #         self.len_i += [1]
+
+    #         # save AVR to self.sim_profiles
+    #         for idx, id in enumerate(input['session_id'].unique()):
+    #             self.sim_profiles[id] = schedule['j'+str(idx)].to_list()
+
+    #         '''--------------bookkeeping--------------'''
+    #         # update supplied energy
+    #         taus = np.array([x*self.instance.tau/self.timeStep for x in self.len_i]) # conversion factors
+    #         for key in input['session_id'].unique(): 
+    #             # except 'EV0000' key
+    #             if key[1:7] != 'EV0000':
+    #                 self.supplied_energy[key] = sum(np.array(self.sim_profiles[key])*taus)
+
+    #         logger.debug('end of optimizer.step at tick {}'.format(curr_time))
+    #     return
 
     def evaluate(self,real_data):# based on Schedule.objective() from FlowbasedOfflineChargingScheduler
 
