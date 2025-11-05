@@ -8,3 +8,4 @@ pyyaml
 xgboost
 hydra-core
 OmegaConf
+networkx

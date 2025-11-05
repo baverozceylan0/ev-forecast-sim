@@ -33,6 +33,14 @@ from src.configs_lib import BaseConfig, PipelineConfig
 import logging
 
 from src.simulators.edf import EDF
+from src.simulators.focs import Optimizer
+from src.simulators.uncontrolled import Uncontrolled
+from src.simulators.pp import OA_benchmark
+from src.simulators.avr import AVR_benchmark
+from src.simulators.lyncs import LYNCS
+from src.simulators.rlyncs import rLYNCS
+from src.simulators.llyncs import lLYNCS
+from src.simulators.almightyoracle import Oracle_benchmark
 
 LOGGER_LVL = logging.INFO
 
@@ -289,7 +297,15 @@ class ModelEvaluationPipeline(FlowSpec):
         # TODO: Replace hardcoded EDF() instantiation with a dynamic simulator loader.
         #       Later, we will generalize this by reading the simulator name and source file path 
         #       from the pipeline config file and instantiating it via a Simulator abstract class.
-        simulator = EDF()             
+        # simulator = EDF() 
+        # simulator = Optimizer()            
+        # simulator = LYNCS()            
+        # simulator = rLYNCS()            
+        simulator = lLYNCS()            
+        # simulator = OA_benchmark()
+        simulator = AVR_benchmark()
+        # simulator = Uncontrolled()
+        # simulator = Oracle_benchmark()
 
         # Load model
         key = 'agg' 
@@ -316,7 +332,8 @@ class ModelEvaluationPipeline(FlowSpec):
         self.df_test_feature_engineered['usr'] = add_session_id(self.df_test_feature_engineered['usr'])
         
         # Loop over days
-        for date in unique_dates:
+        date_range = unique_dates[-10:]
+        for date in date_range:
             try:
                 date_idx = date_to_idx[date]
                 logger.info(f"Simulating Date: {date} ({date_idx+1}/{len(unique_dates)})")
@@ -397,6 +414,57 @@ class ModelEvaluationPipeline(FlowSpec):
                 logger.error(err)
                 
 
+        # read in parquets and combine - globalmetrics
+        globalmets = []
+        prefix = simulator.identifier # e.g., 'focs', 'llyncs' or 'oa'.
+        logger.debug('start compiling results of all days')
+        for date in date_range:
+            try:
+                file = os.path.join(self.results_folder,"{}_{}_globalmetrics.parquet".format(date,prefix))
+                globalmets += [pd.read_parquet(file)]
+            except:
+                logger.debug('[WARNING]: could not find parquet for date {}.'.format(date))
+        try:
+            globalmets = pd.concat(globalmets)
+            file = os.path.join(self.results_folder,"{}_globalmetrics.csv".format(prefix))
+            globalmets.to_csv(file)
+            file = os.path.join(self.results_folder,"{}_globalmetrics.parquet".format(prefix))
+            globalmets.to_parquet(file)
+            logger.debug('compiled results saved successfully')
+        except:
+            if len(globalmets) == 0:
+                logger.error('Nothing to concat')
+            else:
+                logger.error('Something went wrong when saving global results for all days.')
+
+
+        # read in parquets and combine - qosqoe per job
+        jobmets = []
+        logger.debug('start compiling results per job')
+        for date in date_range:
+            try:
+                file = os.path.join(self.results_folder,"{}_{}_qosqoe.parquet".format(date,prefix))
+                jobmets += [pd.read_parquet(file)]
+            except:
+                logger.debug('[WARNING]: could not find parquet for date {}.'.format(date))
+        try:
+            jobmets = pd.concat(jobmets)
+            jobmets['id'] = jobmets['ids'].apply(lambda x: x.split('-')[0][1:])
+            file = os.path.join(self.results_folder,"{}_qosqoe.csv".format(prefix))
+            jobmets.to_csv(file)
+            file = os.path.join(self.results_folder,"{}_qosqoe.parquet".format(prefix))
+            jobmets.to_parquet(file)
+            for id in jobmets['id'].unique():
+                file = os.path.join(self.results_folder,"{}_qosqoe_{}.csv".format(prefix, id))
+                jobmets[jobmets['id']==id].to_csv(file)
+                file = os.path.join(self.results_folder,"{}_qosqoe_{}.parquet".format(prefix, id))
+                jobmets[jobmets['id']==id].to_parquet(file)
+            logger.debug('compiled results saved successfully')
+        except:
+            if len(globalmets) == 0:
+                logger.error('Nothing to concat')
+            else:
+                logger.error('Something went wrong when saving per job results')
 
         self.next(self.end)    
 
