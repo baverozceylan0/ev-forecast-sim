@@ -1,4 +1,4 @@
-# perfect prediction scenario. 
+# perfect prediction scenario with OA. 
 # for benchmarking and evaluation only!
 # every time a new EV arrives, we assume all its features are known. 
 
@@ -44,7 +44,7 @@ class OA_benchmark(Simulator):
         self.time_bins = pd.date_range("00:00", "23:45", freq="15min").time
         self.time_to_idx = {t: i for i, t in enumerate(self.time_bins)}
 
-        self.identifier = 'oa'
+        self.identifier = 'oa_benchmark_pp'
 
     def initilize(self) -> None:
         logger.info('---------------------------------------')
@@ -404,7 +404,7 @@ class OA_benchmark(Simulator):
     def publish_results(self, output_dir: str, prefix: Optional[str] = None) -> None:
         os.makedirs(output_dir, exist_ok=True)
         logger.debug('start publishing')
-        prefix = '{}_oa'.format(self.sessions['start_datetime'].iloc[0].date())
+        prefix = '{}_{}'.format(self.sessions['start_datetime'].iloc[0].date(), self.identifier)
         f_name = "sim_profiles.csv" if prefix == None else f"{prefix}_sim_profiles.parquet"
         file_path = os.path.join(output_dir, f_name)
         self.breaks = list(set(self.breaks))
