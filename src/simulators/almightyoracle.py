@@ -403,7 +403,7 @@ class Oracle_benchmark(Simulator):
     def publish_results(self, output_dir: str, prefix: Optional[str] = None) -> None:
         os.makedirs(output_dir, exist_ok=True)
         logger.debug('start publishing')
-        prefix = '{}_almightyoracle'.format(self.sessions['start_datetime'].iloc[0].date())
+        prefix = '{}_{}'.format(self.sessions['start_datetime'].iloc[0].date(), self.identifier)
         f_name = "sim_profiles.csv" if prefix == None else f"{prefix}_sim_profiles.parquet"
         file_path = os.path.join(output_dir, f_name)
         self.breaks = list(set(self.breaks))
