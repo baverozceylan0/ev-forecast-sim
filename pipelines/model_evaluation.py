@@ -37,10 +37,13 @@ from src.simulators.focs import Optimizer
 from src.simulators.uncontrolled import Uncontrolled
 from src.simulators.oa_benchmark_pp import OA_benchmark # perfect prediction oa
 from src.simulators.avr_benchmark_pp import AVR_benchmark # perfect prediction avr
-from src.simulators.lyncs import LYNCS
-from src.simulators.rlyncs import rLYNCS
-from src.simulators.llyncs import lLYNCS
+from src.simulators.lyncs import LYNCS #llyncs with linear weights for all jobs (including dummy)
+from src.simulators.rlyncs import rLYNCS #llyncs for real jobs, reverse linear for dummy jobs. min cost flow rarely computes output. not useful in this implementation.
+from src.simulators.llyncs import lLYNCS #llyncs with weights 0 for dummy jobs
+from src.simulators.llyncs_naive import lLYNCS_naive #naive llyncs (follows predictions for arrived sessions, no dummy)
 from src.simulators.almightyoracle import Oracle_benchmark #perfect prediction focs
+from src.simulators.focs_naive import FOCS_naive #naive focs/oa (follows predictions for arrived sessions, no dummy)
+from src.simulators.avr_naive import AVR_naive #naive avr (follows predictions for arrived sessions, no dummy)
 
 LOGGER_LVL = logging.INFO
 
@@ -299,6 +302,8 @@ class ModelEvaluationPipeline(FlowSpec):
         #       from the pipeline config file and instantiating it via a Simulator abstract class.
         # simulator = EDF() 
         # simulator = Optimizer()            
+        # simulator = FOCS_naive()
+        # simulator = lLYNCS_naive()            
         # simulator = LYNCS()            
         # simulator = rLYNCS()            
         # simulator = lLYNCS()            
@@ -306,6 +311,7 @@ class ModelEvaluationPipeline(FlowSpec):
         # simulator = AVR_benchmark()
         # simulator = Uncontrolled()
         # simulator = Oracle_benchmark()
+        # simulator = AVR_naive()
 
         # Load model
         key = 'agg' 
