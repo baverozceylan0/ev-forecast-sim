@@ -452,9 +452,17 @@ class lLYNCS_naive(Simulator):
                 t_start = min(temp)
                 t_end = max(temp)+1
 
-                # qos for j add to list
-                jobs_qos3_powervar_real += [1 - (2*statistics.pstdev(s_j[t_start:t_end])/data[data['session_id'] == id]['power'].iloc[0]) ]
+                # due to the updating session features, may require higher power later (22kW instead of 13). --> need to also check max used power. 
+                try:
+                    temp_max = max(data[data['session_id'] == id]['power'].iloc[0], max(s_j).iloc[0])
+                except:
+                    temp_max = max(data[data['session_id'] == id]['power'].iloc[0], max(s_j))
+                if temp_max>data[data['session_id'] == id]['power'].iloc[0]:
+                    temp_max = 22
 
+                # qos for j add to list
+                jobs_qos3_powervar_real += [1 - (2*statistics.pstdev(s_j[t_start:t_end])/temp_max) ]
+               
         return jobs_qos3_powervar_real
     
     def supplied_by_milestone(self,id,milestone_t, taus):
