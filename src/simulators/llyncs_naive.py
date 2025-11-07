@@ -107,13 +107,11 @@ class lLYNCS_naive(Simulator):
         logger.debug('start solving focs')
         self.f = self.focs.solve_focs()
         logger.debug('finished focs')
-        logger.debug('lyncs mode = {}'.format(lyncs_mode))
         if lyncs_mode is not None:
             if lyncs_mode not in ['linear', 'quadratic', 'linear_proportional', 'quadratic_proportional', 'probabilistic', 'probabilistic_full', 'reverse']:
                 logger.info['[ERROR]: Lyncs_mode undefined. Try linear or quadratic.']
             logger.debug('start schedule')
             schedule = Schedule(self.focs)
-            logger.debug('custom = \n{}'.format(['linear' if input['EV_id_x'].iloc[x] != 'EV0000' else 'reverse' for x in range(0,len(input))]))
             schedule.solve_schedule(how = lyncs_mode, custom = ['linear' if input['EV_id_x'].iloc[x] != 'EV0000' else 'None' for x in range(0,len(input))])
             # schedule.solve_schedule(how = lyncs_mode, custom = None)
             logger.debug('saaaaad')
