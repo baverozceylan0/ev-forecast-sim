@@ -7,6 +7,8 @@ import math
 import statistics
 import networkx as nx
 import numpy as np
+# import multiprocessing
+from concurrent.futures import TimeoutError, ProcessPoolExecutor
 import os
 from src.simulators.base_simulator import Simulator
 
@@ -96,6 +98,20 @@ class lLYNCS(Simulator):
 
         return input, upcoming
 
+    def timeout_lyncs(self, lyncs_mode, custom, timeout=10):
+        with ProcessPoolExecutor(max_workers=1) as executor:#executor = ProcessPoolExecutor(max_workers=1)  # Manual control instead of `with`
+            future = executor.submit(self.schedule.solve_schedule, lyncs_mode, custom)
+            try:
+                self.schedule.f_sched = future.result(timeout=timeout)
+                self.schedule.sanitycheck = True
+            except TimeoutError:
+                for pid, proc in executor._processes.items():
+                    proc.terminate()
+                    proc.join(timeout=timeout / 10)
+                self.schedule.sanitycheck = False
+            # logger.debug("Actieve processen na afloop: {}".format(multiprocessing.active_children()))
+        return
+
     def focs_scheduler(self,input, upcoming, curr_time, lyncs_mode = 'linear'):
         logger.debug('started focs_Scheduler')
         '''-------------define and solve FOCS instance ----------------'''
@@ -110,13 +126,12 @@ class lLYNCS(Simulator):
         if lyncs_mode is not None:
             if lyncs_mode not in ['linear', 'quadratic', 'linear_proportional', 'quadratic_proportional', 'probabilistic', 'probabilistic_full', 'reverse']:
                 logger.info['[ERROR]: Lyncs_mode undefined. Try linear or quadratic.']
-            logger.debug('start schedule')
-            schedule = Schedule(self.focs)
-            schedule.solve_schedule(how = lyncs_mode, custom = ['linear' if input['EV_id_x'].iloc[x] != 'EV0000' else 'None' for x in range(0,len(input))])
-            # schedule.solve_schedule(how = lyncs_mode, custom = None)
-            logger.debug('saaaaad')
-            self.f = schedule.f_sched
-            logger.debug('so it also breaks here, ah')
+            self.schedule = Schedule(self.focs)           
+            self.timeout_lyncs(lyncs_mode, ['linear' if input['EV_id_x'].iloc[x] != 'EV0000' else 'None' for x in range(0,len(input))])
+            if self.schedule.sanitycheck:
+                self.f = self.schedule.f_sched
+            else:
+                logger.debug('[WARNING]: LYNCS did not return a schedule. Continuing with initial FOCS schedule.')
 
         '''-------------save schedule-----------------------'''
         # check if intervals are 900 seconds apart from previous time:
@@ -506,7 +521,7 @@ class lLYNCS(Simulator):
         # if button is off, make guarantee static asr
         if milestones_predef is None:
             # add asr milestones: 23kWh by 4pm (if quarters then by quarter 64)
-            milestones = [[[23,dt.datetime.combine(dt.datetime(1,1,1), dt.time(hour=16))]] for id in data['session_id']] # if multiple guarantees, energy is additive!
+            milestones = [[[23,dt.datetime.combine(dt.datetime(1,1,1), time(hour=16))]] for id in data['session_id']] # if multiple guarantees, energy is additive!
         else:
             milestones = milestones_predef
 
