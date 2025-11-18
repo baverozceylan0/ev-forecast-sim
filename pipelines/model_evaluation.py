@@ -35,12 +35,15 @@ import logging
 from src.simulators.edf import EDF
 from src.simulators.focs import Optimizer
 from src.simulators.uncontrolled import Uncontrolled
-from src.simulators.pp import OA_benchmark
-from src.simulators.avr import AVR_benchmark
-from src.simulators.lyncs import LYNCS
-from src.simulators.rlyncs import rLYNCS
-from src.simulators.llyncs import lLYNCS
-from src.simulators.almightyoracle import Oracle_benchmark
+from src.simulators.oa_benchmark_pp import OA_benchmark # perfect prediction oa
+from src.simulators.avr_benchmark_pp import AVR_benchmark # perfect prediction avr
+from src.simulators.lyncs import LYNCS #llyncs with linear weights for all jobs (including dummy)
+from src.simulators.rlyncs import rLYNCS #llyncs for real jobs, reverse linear for dummy jobs. min cost flow rarely computes output. not useful in this implementation.
+from src.simulators.llyncs import lLYNCS #llyncs with weights 0 for dummy jobs
+from src.simulators.llyncs_naive import lLYNCS_naive #naive llyncs (follows predictions for arrived sessions, no dummy)
+from src.simulators.almightyoracle import Oracle_benchmark #perfect prediction focs
+from src.simulators.focs_naive import FOCS_naive #naive focs/oa (follows predictions for arrived sessions, no dummy)
+from src.simulators.avr_naive import AVR_naive #naive avr (follows predictions for arrived sessions, no dummy)
 
 LOGGER_LVL = logging.INFO
 
@@ -297,15 +300,19 @@ class ModelEvaluationPipeline(FlowSpec):
         # TODO: Replace hardcoded EDF() instantiation with a dynamic simulator loader.
         #       Later, we will generalize this by reading the simulator name and source file path 
         #       from the pipeline config file and instantiating it via a Simulator abstract class.
-        # simulator = EDF() 
-        # simulator = Optimizer()            
+        # simulator = EDF()             - 
+        simulator = Optimizer()           
+        # simulator = FOCS_naive()
+        # simulator = lLYNCS_naive()            
         # simulator = LYNCS()            
-        # simulator = rLYNCS()            
-        simulator = lLYNCS()            
+        # simulator = rLYNCS()          -   
+        # simulator = lLYNCS()        
         # simulator = OA_benchmark()
-        simulator = AVR_benchmark()
+        # simulator = AVR_benchmark()
         # simulator = Uncontrolled()
         # simulator = Oracle_benchmark()
+        # simulator = AVR_naive()
+        simulator.learning_prefix = self.model_config['agg'].name + self.model_config['usr'].name
 
         # Load model
         key = 'agg' 
@@ -416,7 +423,7 @@ class ModelEvaluationPipeline(FlowSpec):
 
         # read in parquets and combine - globalmetrics
         globalmets = []
-        prefix = simulator.identifier # e.g., 'focs', 'llyncs' or 'oa'.
+        prefix = simulator.identifier + simulator.learning_prefix # e.g., 'focs', 'llyncs' or 'oa'.
         logger.debug('start compiling results of all days')
         for date in date_range:
             try:

@@ -9,6 +9,12 @@ logger = logging.getLogger(__name__)
 
 engineer = FeatureEngineer(logging_off=True)
 
+def generate_sessions_naive(input: pd.DataFrame) -> pd.DataFrame:
+
+    # we basically remove the dummys ;)
+    input['total_energy'][input['EV_id_x'] == 'EV0000'] = 0
+    return input
+
 def generate_sessions_from_profile(df_sessions: pd.DataFrame, 
                                    df_agg: pd.DataFrame, 
                                    curr_time: time,
