@@ -297,21 +297,22 @@ class ModelEvaluationPipeline(FlowSpec):
         setup_logger(log_file=self.log_file, level=LOGGER_LVL)
         logger = logging.getLogger(__name__)
 
+        learning_prefix = self.model_config['agg'].name + self.model_config['usr'].name
         # TODO: Replace hardcoded EDF() instantiation with a dynamic simulator loader.
         #       Later, we will generalize this by reading the simulator name and source file path 
         #       from the pipeline config file and instantiating it via a Simulator abstract class.
-        # simulator = EDF() 
-        # simulator = Optimizer()            
-        # simulator = FOCS_naive()
-        # simulator = lLYNCS_naive()            
-        # simulator = LYNCS()            
-        # simulator = rLYNCS()            
-        # simulator = lLYNCS()            
-        simulator = OA_benchmark()
-        # simulator = AVR_benchmark()
-        # simulator = Uncontrolled()
-        # simulator = Oracle_benchmark()
-        # simulator = AVR_naive()
+        # simulator = EDF()             - 
+        simulator = Optimizer(learning_prefix=learning_prefix)           
+        # simulator = FOCS_naive(learning_prefix=learning_prefix)
+        # simulator = lLYNCS_naive(learning_prefix=learning_prefix)            
+        # simulator = LYNCS(learning_prefix=learning_prefix)            
+        # simulator = rLYNCS(learning_prefix=learning_prefix)          -   
+        # simulator = lLYNCS(learning_prefix=learning_prefix)        
+        # simulator = OA_benchmark(learning_prefix=learning_prefix)
+        # simulator = AVR_benchmark(learning_prefix=learning_prefix)
+        # simulator = Uncontrolled(learning_prefix=learning_prefix)
+        # simulator = Oracle_benchmark(learning_prefix=learning_prefix)
+        # simulator = AVR_naive(learning_prefix=learning_prefix)
 
         # Load model
         key = 'agg' 
@@ -422,7 +423,7 @@ class ModelEvaluationPipeline(FlowSpec):
 
         # read in parquets and combine - globalmetrics
         globalmets = []
-        prefix = simulator.identifier # e.g., 'focs', 'llyncs' or 'oa'.
+        prefix = simulator.identifier + learning_prefix # e.g., 'focs', 'llyncs' or 'oa'.
         logger.debug('start compiling results of all days')
         for date in date_range:
             try:

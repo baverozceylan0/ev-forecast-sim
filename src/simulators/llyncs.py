@@ -29,7 +29,7 @@ logging.basicConfig( # write logger.info for messages and warnings, if for debug
 )
 
 class lLYNCS(Simulator):
-    def __init__(self) -> None: 
+    def __init__(self, learning_prefix = "") -> None: 
         self.timeStep = 900
         self.timeBase = 3600
         self.power_default_kW = 13
@@ -38,6 +38,7 @@ class lLYNCS(Simulator):
         self.time_to_idx = {t: i for i, t in enumerate(self.time_bins)}
 
         self.identifier = 'llyncs'
+        self.learning_prefix = learning_prefix
 
     def initilize(self) -> None:
         logger.info('---------------------------------------')
@@ -545,7 +546,7 @@ class lLYNCS(Simulator):
 
     def publish_results(self, output_dir: str, prefix: Optional[str] = None) -> None:
         os.makedirs(output_dir, exist_ok=True)
-        prefix = '{}_{}'.format(self.sessions['start_datetime'].iloc[0].date(), self.identifier)
+        prefix = '{}_{}_{}'.format(self.sessions['start_datetime'].iloc[0].date(), self.identifier, self.learning_prefix)
         f_name = "sim_profiles.csv" if prefix == None else f"{prefix}_sim_profiles.parquet"
         file_path = os.path.join(output_dir, f_name)
         self.breaks = list(set(self.breaks))
