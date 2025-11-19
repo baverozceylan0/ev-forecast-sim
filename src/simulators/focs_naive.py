@@ -323,7 +323,7 @@ class FOCS_naive(Simulator):
         self.jobs_es_rel = [1 - x for x in self.jobs_ens_rel]
 
         # QOS2 : relative wait till charging starts
-        self.jobs_qos2_waiting_real = self.qos_2(real_data)
+        self.jobs_qos2_waiting_real, self.jobs_qos2_waiting_plan = self.qos_2(real_data)
 
         # QOS3 : variation of charging power over time (relative to max power)
         self.jobs_qos3_powervar_real = self.qos_3(real_data)
@@ -345,6 +345,7 @@ class FOCS_naive(Simulator):
         self.qos_1_min = min(self.jobs_es_rel)
         # QOS2 min
         self.qos_2_real_min = min(self.jobs_qos2_waiting_real)
+        self.qos_2_plan_min = min(self.jobs_qos2_waiting_plan)
         # QOS3 min
         self.qos_3_real_min = min(self.jobs_qos3_powervar_real)
 
@@ -355,6 +356,7 @@ class FOCS_naive(Simulator):
         # Jain's fairness index based on qos and qoe
         self.jain_qos_1 = self.Jain(self.jobs_es_rel)
         self.jain_qos_2_real = self.Jain(self.jobs_qos2_waiting_real)
+        self.jain_qos_2_plan = self.Jain(self.jobs_qos2_waiting_plan)
         self.jain_qos_3_real = self.Jain(self.jobs_qos3_powervar_real)
 
         # Hoßfeld's fairness index based on relative ENS
@@ -364,6 +366,7 @@ class FOCS_naive(Simulator):
         # Hoßfeld's fairness index based on qos and qoe
         self.hossfeld_qos_1 = self.Hossfeld(self.jobs_es_rel)
         self.hossfeld_qos_2_real = self.Hossfeld(self.jobs_qos2_waiting_real)
+        self.hossfeld_qos_2_plan = self.Hossfeld(self.jobs_qos2_waiting_plan)
         self.hossfeld_qos_3_real = self.Hossfeld(self.jobs_qos3_powervar_real)
 
         # cycle switches TODO
@@ -394,19 +397,24 @@ class FOCS_naive(Simulator):
         return 1 - 2* statistics.pstdev(x)/(H-h)
     
     def qos_2(self, data): # qos_2 in Danner and de Meer (2021)
+        # NOTE trivially 1 in this setup, as upon arrival, we charge EVs at full power till the next planning interval
 
         # determine first interval with positive charge
         # FIXME only 135 entries instead of 139!! --> has to do with non-unique EVids. Some EVs register for 2 charging sessions in a single day.
         first_pos_charging_power = [self.sim_profiles[id].index([i for i in self.sim_profiles[id] if i!=0][0]) for id in self.sim_profiles.keys() if id[1:7] != 'EV0000']
         t_start_charging = [dt.datetime.combine(data['start_datetime'].iloc[0].date(),self.breaks[i].time()) for i in first_pos_charging_power]
+        t_start_charging_scheduled = [dt.datetime.combine(data['start_datetime'].iloc[0].date(),self.breaks[i+next((i for i,t in enumerate(self.breaks[i:]) if t.minute % 15 == 0 and t.second == 0))].time()) for i in first_pos_charging_power]
 
         # determine qos2
         if len(t_start_charging) != len(data):
             logger.info('[WARNING]: indexing gone wrong. You better double check your assumptions.') # likely non-unique EVids.
         self.jobs_qos2_waiting_real = [max(0,1 - (t_start_charging[j] - data['start_datetime'].iloc[j])/(data['end_datetime'].iloc[j] - data['start_datetime'].iloc[j])) for j in range(0,len(t_start_charging))]
-        logger.debug(self.jobs_qos2_waiting_real)
-        return self.jobs_qos2_waiting_real
-    
+
+        # determine qos2 from the first full quarter
+        # FIXME could assume neg values if EV departs within 15 minutes. change start datetime to next 15 mins?
+        self.jobs_qos2_waiting_plan = [max(0,1 - (t_start_charging_scheduled[j] - data['start_datetime'].iloc[j])/(data['end_datetime'].iloc[j] - data['start_datetime'].iloc[j])) for j in range(0,len(t_start_charging))]
+        return self.jobs_qos2_waiting_real, self.jobs_qos2_waiting_plan
+   
     def qos_3(self, data):
         # NOTE Checking correctness of the statements by Danner and de Meer with Maria rn.
         # NOTE Checked. They use the biased sample standard deviation (divide by N). See https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1467-9639.1980.tb00398.x for proof of bound.
@@ -543,8 +551,8 @@ class FOCS_naive(Simulator):
         self.evaluate(real_data=self.sessions)
         if len(self.sessions) != len(self.jobs_ens_abs):
             logger.error('Day likely contains >= 2 sessions by a single EV. Cannot save qosqoe metrics.')
-        mets_jobs = {'ids': self.sessions['session_id'].to_list(), 'day':[self.sessions['start_datetime'].iloc[0].date() for i in range(0,len(self.sessions))], 'ens_abs_exact': self.jobs_ens_abs_exact, 'ens_rel_exact': self.jobs_ens_rel_exact,'ens_abs': self.jobs_ens_abs, 'ens_rel': self.jobs_ens_rel, 'qos1': self.jobs_es_rel, 'qos2': self.jobs_qos2_waiting_real, 'qos3': self.jobs_qos3_powervar_real, 'qoe': self.jobs_qoe_real}
-        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date()], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos3_min': [self.qos_3_real_min], 'qoe_total_exact': [self.qoe_total_exact], 'qoe_total_rel': [self.qoe_total_rel], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg], 'flat':[self.flat_value], 'peak': [self.peak] }
+        mets_jobs = {'ids': self.sessions['session_id'].to_list(), 'day':[self.sessions['start_datetime'].iloc[0].date() for i in range(0,len(self.sessions))], 'ens_abs_exact': self.jobs_ens_abs_exact, 'ens_rel_exact': self.jobs_ens_rel_exact,'ens_abs': self.jobs_ens_abs, 'ens_rel': self.jobs_ens_rel, 'qos1': self.jobs_es_rel, 'qos2': self.jobs_qos2_waiting_real, 'qos2_plan': self.jobs_qos2_waiting_plan, 'qos3': self.jobs_qos3_powervar_real, 'qoe': self.jobs_qoe_real}
+        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date()], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos2_min_plan': [self.qos_2_plan_min], 'qos3_min': [self.qos_3_real_min], 'qoe_total_exact': [self.qoe_total_exact], 'qoe_total_rel': [self.qoe_total_rel], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos2_plan': [self.jain_qos_2_plan], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos2_plan': [self.hossfeld_qos_2_plan], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg], 'flat':[self.flat_value], 'peak': [self.peak] }
         
         f_name = "qosqoe.csv" if prefix == None else f"{prefix}_qosqoe.parquet"
         file_path = os.path.join(output_dir, f_name)
