@@ -423,7 +423,7 @@ class ModelEvaluationPipeline(FlowSpec):
 
         # read in parquets and combine - globalmetrics
         globalmets = []
-        prefix = simulator.identifier + simulator.learning_prefix # e.g., 'focs', 'llyncs' or 'oa'.
+        prefix = simulator.identifier + "_" + simulator.learning_prefix # e.g., 'focs', 'llyncs' or 'oa'.
         logger.debug('start compiling results of all days')
         for date in date_range:
             try:
