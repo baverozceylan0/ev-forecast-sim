@@ -104,12 +104,13 @@ class lLYNCS(Simulator):
             future = executor.submit(self.schedule.solve_schedule, lyncs_mode, custom)
             try:
                 self.schedule.f_sched = future.result(timeout=timeout)
-                self.schedule.sanitycheck = True
             except TimeoutError:
+                logger.info('[WARNING]: Timeout error for LYNCS. Code will default back to FOCS schedule for this planning step.')
                 for pid, proc in executor._processes.items():
                     proc.terminate()
                     proc.join(timeout=timeout / 10)
-                self.schedule.sanitycheck = False
+            except:
+                logger.info('[WARNING]: An error occurred when calculating LYNCS. Code will default back to FOCS schedule for this planning step.')
             # logger.debug("Actieve processen na afloop: {}".format(multiprocessing.active_children()))
         return
 
@@ -129,9 +130,9 @@ class lLYNCS(Simulator):
                 logger.info['[ERROR]: Lyncs_mode undefined. Try linear or quadratic.']
             self.schedule = Schedule(self.focs)           
             self.timeout_lyncs(lyncs_mode, ['linear' if input['EV_id_x'].iloc[x] != 'EV0000' else 'None' for x in range(0,len(input))])
-            if self.schedule.sanitycheck:
+            try:
                 self.f = self.schedule.f_sched
-            else:
+            except:
                 logger.debug('[WARNING]: LYNCS did not return a schedule. Continuing with initial FOCS schedule.')
 
         '''-------------save schedule-----------------------'''

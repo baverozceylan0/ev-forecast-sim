@@ -7,6 +7,8 @@ import math
 import statistics
 import networkx as nx
 import numpy as np
+# import multiprocessing
+from concurrent.futures import TimeoutError, ProcessPoolExecutor
 import os
 from src.simulators.base_simulator import Simulator
 
@@ -97,6 +99,21 @@ class LYNCS(Simulator):
 
         return input, upcoming
 
+    def timeout_lyncs(self, lyncs_mode, custom, timeout=10):
+        with ProcessPoolExecutor(max_workers=1) as executor:#executor = ProcessPoolExecutor(max_workers=1)  # Manual control instead of `with`
+            future = executor.submit(self.schedule.solve_schedule, lyncs_mode, custom)
+            try:
+                self.schedule.f_sched = future.result(timeout=timeout)
+            except TimeoutError:
+                logger.info('[WARNING]: Timeout error for LYNCS. Code will default back to FOCS schedule for this planning step.')
+                for pid, proc in executor._processes.items():
+                    proc.terminate()
+                    proc.join(timeout=timeout / 10)
+            except:
+                logger.info('[WARNING]: An error occurred when calculating LYNCS. Code will default back to FOCS schedule for this planning step.')
+            # logger.debug("Actieve processen na afloop: {}".format(multiprocessing.active_children()))
+        return
+
     def focs_scheduler(self,input, upcoming, curr_time, lyncs_mode = 'linear'):
         logger.debug('started focs_Scheduler')
         '''-------------define and solve FOCS instance ----------------'''
@@ -109,11 +126,12 @@ class LYNCS(Simulator):
         if lyncs_mode is not None:
             if lyncs_mode not in ['linear', 'quadratic', 'linear_proportional', 'quadratic_proportional', 'probabilistic', 'probabilistic_full', 'reverse']:
                 logger.info['[ERROR]: Lyncs_mode undefined. Try linear or quadratic.']
-            schedule = Schedule(self.focs)
-            logger.debug('custom = \n{}'.format(['linear' if input['EV_id_x'].iloc[x] != 'EV0000' else 'reverse' for x in range(0,len(input))]))
-            schedule.solve_schedule(how = lyncs_mode, custom = None)
-            self.f = schedule.f_sched
-            logger.debug('so it also breaks here, ah')
+            self.schedule = Schedule(self.focs)
+            self.timeout_lyncs(lyncs_mode, None)
+            try:
+                self.f = self.schedule.f_sched
+            except:
+                logger.debug('[WARNING]: LYNCS did not return a schedule. Continuing with initial FOCS schedule.')
 
         '''-------------save schedule-----------------------'''
         # check if intervals are 900 seconds apart from previous time:
