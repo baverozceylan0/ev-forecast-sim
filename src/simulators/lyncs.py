@@ -67,7 +67,7 @@ class LYNCS(Simulator):
         # filter past sessions
         if curr_time is not None:
             input = input[input['end_time']>curr_time]
-            upcoming = upcoming[upcoming['end_time']>curr_time]
+            upcoming = upcoming[upcoming['end_time']>=curr_time]
 
         # add new ids to dataframe
         self.new_ids = [key for key in upcoming['session_id'].unique() if key not in self.supplied_energy.keys()] # no dataleakage. Just bookkeeping.
