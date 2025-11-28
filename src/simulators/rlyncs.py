@@ -48,6 +48,7 @@ class rLYNCS(Simulator):
         self.sim_profiles = {}
         self.breaks = []
         self.offset = 0 # used to increase robustness to steps with non-consecutive intervals
+        self.energy_agg = []
 
     def preprocessing(self,input, upcoming, curr_time=None):
         # update start times to curr_time (if further in the past).
@@ -251,6 +252,10 @@ class rLYNCS(Simulator):
         self.sessions = df_usr_sessions
         energy_agg = df_agg_timeseries
         upcoming = active_session_info
+        if curr_time == dt.time(0,15) or curr_time == dt.time(12,0) or curr_time == dt.time(23,30):
+            energy_agg['start'] = self.time_bins
+            energy_agg['start_seconds'] = [900*i for i in range(0,len(energy_agg))]
+            self.energy_agg += [[energy_agg, curr_time]]
 
         if len(upcoming) == 0:
             # FIXME save 0s and breaks and continue.
@@ -387,6 +392,9 @@ class rLYNCS(Simulator):
         # energy served
         self.es_exact = sum(real_data['total_energy']) - sum(self.jobs_ens_abs_exact)
         self.es = round(sum(real_data['total_energy']) - sum(self.jobs_ens_abs),6)
+        # Relative energy served total
+        self.es_rel = sum(self.jobs_es_rel)/len(self.jobs_es_rel)
+
         # energy not served
         self.ens_abs_exact = sum(self.jobs_ens_abs_exact)
         self.ens_abs = sum(self.jobs_ens_abs)
@@ -548,13 +556,20 @@ class rLYNCS(Simulator):
         self.breaks = list(set(self.breaks))
         self.breaks.sort()
         self.sim_profiles['agg'] = [sum([self.sim_profiles[y][x] for y in self.sim_profiles.keys() if y != 'EV0000']) for x in range(0,len(set(self.breaks))-1)]
+        self.sim_profiles['energy'] = [self.sim_profiles['agg'][i]*self.len_i[i]/self.timeBase for i in range(0,len(self.sim_profiles['agg']))]
+        self.sim_profiles['energy_cumu'] = [sum(self.sim_profiles['energy'][:i]) for i in range(0,len(self.sim_profiles['agg']))]
         self.sim_profiles['start_time'] = [x.time() for x in self.breaks[:-1]]
         self.sim_profiles['start'] = [(x - x.replace(hour=0, minute=0, second=0)).seconds for x in self.breaks[:-1]]
         pd.DataFrame(self.sim_profiles).to_parquet(file_path)
         pd.DataFrame(self.sim_profiles).to_csv(os.path.join(output_dir,'{}_sim_profiles.csv'.format(prefix)))
         del self.sim_profiles['start_time']
         del self.sim_profiles['agg']
+        del self.sim_profiles['energy']
+        del self.sim_profiles['energy_cumu']
         del self.sim_profiles['start']
+
+        for snippet in self.energy_agg:
+            pd.DataFrame(snippet[0]).to_csv(os.path.join(output_dir,'{}_energy_agg_{}.csv'.format(prefix, str(snippet[1]).replace(':','_'))))
 
         f_name = "supplied_energy.csv" if prefix == None else f"{prefix}_supplied_energy.parquet"
         file_path = os.path.join(output_dir, f_name)
@@ -567,7 +582,7 @@ class rLYNCS(Simulator):
         if len(self.sessions) != len(self.jobs_ens_abs):
             logger.error('Day likely contains >= 2 sessions by a single EV. Cannot save qosqoe metrics.')
         mets_jobs = {'ids': self.sessions['session_id'].to_list(), 'day':[self.sessions['start_datetime'].iloc[0].date() for i in range(0,len(self.sessions))], 'ens_abs_exact': self.jobs_ens_abs_exact, 'ens_rel_exact': self.jobs_ens_rel_exact,'ens_abs': self.jobs_ens_abs, 'ens_rel': self.jobs_ens_rel, 'qos1': self.jobs_es_rel, 'qos2': self.jobs_qos2_waiting_real, 'qos2_plan': self.jobs_qos2_waiting_plan, 'qos3': self.jobs_qos3_powervar_real, 'qoe': self.jobs_qoe_real}
-        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date()], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos2_min_plan': [self.qos_2_plan_min], 'qos3_min': [self.qos_3_real_min], 'qoe_total_exact': [self.qoe_total_exact], 'qoe_total_rel': [self.qoe_total_rel], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos2_plan': [self.jain_qos_2_plan], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos2_plan': [self.hossfeld_qos_2_plan], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg], 'flat':[self.flat_value], 'peak': [self.peak] }
+        mets_global = {'day':[self.sessions['start_datetime'].iloc[0].date()], 'ens_abs_max': [self.jobs_ens_abs_max], 'ens_rel_max': [self.jobs_ens_rel_max], 'qos1_min': [self.qos_1_min], 'qos2_min': [self.qos_2_real_min], 'qos2_min_plan': [self.qos_2_plan_min], 'qos3_min': [self.qos_3_real_min], 'qoe_total_exact': [self.qoe_total_exact], 'qoe_total_rel': [self.qoe_total_rel], 'jain_ens_rel_exact': [self.jain_ens_rel_exact], 'jain_ens_rel': [self.jain_ens_rel], 'jain_qos1': [self.jain_qos_1], 'jain_qos2': [self.jain_qos_2_real], 'jain_qos2_plan': [self.jain_qos_2_plan], 'jain_qos3': [self.jain_qos_3_real], 'hossfeld_ens_rel_exact': [self.hossfeld_ens_rel_exact], 'hossfeld_ens_rel': [self.hossfeld_ens_rel], 'hossfeld_qos1': [self.hossfeld_qos_1], 'hossfeld_qos2': [self.hossfeld_qos_2_real], 'hossfeld_qos2_plan': [self.hossfeld_qos_2_plan], 'hossfeld_qos3': [self.hossfeld_qos_3_real], 'es_total': [self.es], 'es_exact_total': [self.es_exact], 'es_total_rel': [self.es_rel], 'ens_abs_exact_total': [self.ens_abs_exact], 'ens_rel_exact_avg': [self.ens_rel_exact_avg], 'ens_rel_avg': [self.ens_rel_avg], 'flat':[self.flat_value], 'peak': [self.peak] }
         
         f_name = "qosqoe.csv" if prefix == None else f"{prefix}_qosqoe.parquet"
         file_path = os.path.join(output_dir, f_name)
